@@ -1,0 +1,28 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/planet_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/planets/baked/ochre-7522e087caa32f4aeca94c102460a7d3a227838820de904cc4b4bafa19048d77.res" id="1_jat63"]
+
+[resource]
+script = ExtResource("1")
+planet_name = "Ochre"
+terrain_seed = 42017
+radius = 32000.0
+rotation_seconds = 2300.0
+surface_gravity = 4.2
+atmosphere_density = 0.18
+atmosphere_height = 9000.0
+atmosphere_visual_density = 0.35
+orbit_distance_au = 1.55
+orbit_period_days = 690.0
+orbit_phase = 0.34
+map_color = Color(0.78, 0.47, 0.29, 1)
+continent_frequency = 3.1
+relief = 1800.0
+has_ocean = false
+launch_site = false
+lowland = Color(0.36, 0.19, 0.12, 1)
+highland = Color(0.62, 0.4, 0.24, 1)
+dryland = Color(0.52, 0.29, 0.16, 1)
+snow = Color(0.77, 0.65, 0.49, 1)
+baked_terrain = ExtResource("1_jat63")

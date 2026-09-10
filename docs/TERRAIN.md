@@ -1,0 +1,35 @@
+# Seeded planetary terrain
+
+Verdant is generated from `assets/planets/verdant.tres`. `PlanetDefinition` supplies a name, seed, radius, rotation period, surface gravity, atmosphere density and height, visual haze density, continent frequency, continent edge smoothness, sea threshold, relief, ocean switch, launch-site switch and palette. `assets/planets/ochre.tres` demonstrates a second, smaller dry planet with a different seed and colors. Only Verdant is wired into the flight simulation; travel and per-body switching are separate work.
+
+`PlanetTerrain` samples deterministic 3D noise in body coordinates. Continental elevation, regional mountain belts and smaller relief produce the physical height field. Climate and elevation determine shoreline, grassland, dryland, rock and snow colors. No bitmap geography is used. Keep the seed, settings, generator implementation and Godot version fixed to preserve locations; changing a seed or algorithm intentionally changes the world.
+
+The full closed mesh uses 512 longitude segments and 256 distant latitude intervals, plus closely spaced launch-site rings with extra shoreline samples (293,888 triangles on Verdant). It is generated and cached once for collision. Vertices, smooth normals, biome colors and the TriangleMesh collision acceleration structure all come from those triangles. Ocean basins terminate at sea level and act as a contact surface for recovery; underwater seabeds and water dynamics are not implemented.
+
+Flight rendering uses five cached terrain detail layers selected by altitude: full detail near the surface, then 256×128 with launch-site rings, 128×64, 64×32 and 32×16 meshes as the vehicle climbs. LOD changes use a small altitude hysteresis to avoid flicker near thresholds. Only the visual mesh changes; contact, landings and detached-stage impacts continue to use the full-detail terrain.
+
+Flight uses swept segment contact with the actual mesh, including the ground's rotation between substeps. It resolves touchdown to the triangle, evaluates impact velocity relative to rotating ground and checks orientation against the face normal. Slow touchdowns settle upright; steep slopes or excessive speed crash. Detached stages use the same contacts. Air drag uses velocity relative to the rotating atmosphere. Orbit calculations retain inertial velocity and altitude above the reference radius.
+
+The HUD reports ground clearance separately from sea-level altitude; parachute height checks use ground clearance. The flight and map globe read the simulation clock, including while flight rendering is suspended. A completed flight freezes simulation time, leaving the touchdown attached to its ground.
+
+The map uses the shared terrain to stop a coast preview and hide indicators behind mountains. Its preview samples the current terrain orientation; future rotation, drag and thrust are excluded. A rotating-body intercept solver is not implemented.
+
+The local map renders a cached 1024×512 preview mesh, matching the planet editor, instead of copying the flight mesh's altitude-dependent LOD. Both globe views use filmic tone mapping. Flight collision and landing geometry remain at their existing resolution.
+
+**Bake & Save Planet** writes all five flight LOD meshes and the editor/map preview to a compressed resource in `assets/planets/baked/`, referenced by the planet preset. Vertex positions, normals, land colors, water coverage and indices are persisted together. Collision is built from the saved LOD 0 mesh. The editor's preview selector shows each flight layer before saving. A signature of geometry/color settings, generator version and engine version rejects stale bakes; changed or unbaked presets fall back to procedural generation until saved again. Lighting, atmosphere and view-dependent material filtering remain dynamic. Baking preserves each LOD's geometry; it does not morph away LOD transitions.
+
+Export the game data pack after saving to include new bakes in the packaged game launched by `play.sh`. Source editor saves do not modify a previously exported data pack.
+
+The bake also includes a shared 2048×1024 linear-color surface texture with water coverage and mipmaps. Every render LOD samples this same texture in spherical body coordinates, keeping biome and coastline detail independent of triangle spacing. Shoreline filtering accounts for pixel size, and longitude derivatives are unwrapped for mip selection at the texture seam. Coarse LOD silhouettes and slope lighting still follow their actual geometry.
+
+The planet editor is a standalone scene at `res://scenes/planet_editor.tscn`, also opened from the workshop footer's Map editor button. It lists existing planet resources from `assets/planets/*.tres` and edits the selected planet with a live preview mesh: name, seed, radius, rotation, gravity, atmosphere density and height, haze density, solar-map trajectory settings, sea threshold, continent frequency, continent edge smoothness, relief, mountain frequency, ridge roundness, ocean and launch-island toggles, and palette colors. Pressing Save Planet writes the selected `.tres`; live preview changes do not mutate an active flight terrain until saved and reloaded. It does not yet support brush painting.
+
+This is the terrain foundation: elevation is real geometry everywhere, but distant triangle spacing is roughly 700 m and only the launch region has dense local geometry. Future local refinement must refine both the visible mesh and contact surface together. Terrain streaming, caves, overhangs, erosion simulation and site-selection UI are not implemented.
+
+Validation covers closed topology, winding, normals, global elevations, seed repeatability, a second preset, exact face contacts, sixteen rotated highland touchdowns, high-speed crash prevention, propulsion, orbit conservation, liftoff, parachutes, map interactions and launch-to-orbit continuity.
+
+Mountain belts use broader, lower-frequency noise and rounded ridge crests, with reduced small-scale elevation noise. Shore and snow colors blend across wider elevation bands. The map uses 4× MSAA, matching the main viewport, to smooth silhouette and trajectory edges. Mountain frequency and ridge roundness are per-planet settings. This revision intentionally changes terrain elevations; contact triangles are rebuilt from the revised field.
+
+The surface shader adds body-space material variation at regional, ground and grain scales, fading fine detail with the pixel footprint to avoid distant shimmer. Actual mesh slopes expose rock and receive sky fill. Vertex colors carry land albedo and separate water coverage; ocean color is resolved per fragment for clearer coasts. These material changes do not alter contact geometry.
+
+Surface variation uses six overlapping scales, from roughly 1.3 km down to 3 m. Each scale fades between ten and roughly three pixels per noise cell, including the regional layers. Low-contrast material variation preserves smooth biome gradients, while a three-axis hash avoids repeated diagonal dot patterns. Biome boundaries still originate in vertex colors; this is material detail, not additional terrain geometry.

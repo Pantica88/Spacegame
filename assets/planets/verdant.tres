@@ -1,0 +1,17 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/planet_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/planets/baked/verdant-82911ec498c645c418d2c959be4fd14585eca9ea4266ab84be789c0c4a17f719.res" id="1_htmxn"]
+
+[resource]
+script = ExtResource("1")
+atmosphere_height = 17500.0
+atmosphere_visual_density = 0.97
+orbit_distance_au = 0.99
+continent_frequency = 3.1
+continent_edge_smoothness = 0.5
+relief = 2700.0
+mountain_frequency = 8.3
+ridge_roundness = 0.19
+ocean = Color(0.39607844, 0.1310662, 0.082352966, 1)
+baked_terrain = ExtResource("1_htmxn")
