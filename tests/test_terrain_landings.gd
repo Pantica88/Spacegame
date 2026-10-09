@@ -2,6 +2,8 @@ extends SceneTree
 const Surface = preload("res://scripts/planet_surface.gd")
 const Terrain = preload("res://scripts/planet_terrain.gd")
 const Flight = preload("res://scripts/flight_model.gd")
+const Fixture = preload("res://tests/terrain_fixture.gd")
+const Physics = preload("res://scripts/physics_math.gd")
 var failures: Array[String] = []
 func check(value: bool, message: String) -> void:
 	if not value: failures.append(message)
@@ -28,12 +30,12 @@ func _init() -> void:
 		var c := vertices[indices[offset+2]]
 		var point := (a+b+c)/3.0
 		var normal := (c-a).cross(b-a).normalized()
-		if point.y > 55000 or point.length() < 60200 or normal.dot(point.normalized()) < 0.93: continue
+		if point.dot(Terrain.LAUNCH_DIRECTION) > Surface.RADIUS * 0.92 or point.length() < Surface.RADIUS + 200.0 or normal.dot(point.normalized()) < 0.93: continue
 		for time in [0.0,360.0]:
 			var rotation: Basis = terrain.rotation_at(time)
 			var radial: Vector3 = rotation*point
 			var hit: Dictionary = terrain.contact(radial,time)
-			check(absf(float(hit.radius)-point.length()) < 0.05,"Contact must lie on the rendered triangle, including rotation")
+			check(absf(float(hit.radius)-Fixture.plane_radius(a, b, c, radial, rotation)) < 0.0001,"Contact must lie on the rendered triangle, including rotation")
 			var flight := Flight.new()
 			flight.ignite()
 			flight.state.time = time
@@ -47,7 +49,7 @@ func _init() -> void:
 			var landed_radial: Vector3 = flight.state.position-Flight.PLANET_CENTER
 			var landed_hit: Dictionary = terrain.contact(landed_radial,flight.simulation_time())
 			check(Vector3(flight.state.terrain_normal).dot(landed_hit.normal) > 0.9999,"Recovery telemetry uses the visible terrain normal")
-			var plane_distance := (landed_radial.length()-float(landed_hit.radius))*landed_radial.normalized().dot(landed_hit.normal)
+			var plane_distance := (sqrt(Physics.dot_double(landed_radial, landed_radial))-float(landed_hit.radius))*landed_radial.normalized().dot(landed_hit.normal)
 			check(absf(float(flight.state.terrain_plane_distance)-plane_distance) < 0.01,"Recovery plane follows the hillside")
 			var previous_velocity: Vector3 = flight.state.velocity
 			flight.step(1.0/60.0,{"throttle":0.0})

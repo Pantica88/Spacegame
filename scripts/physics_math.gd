@@ -41,11 +41,21 @@ static func coast_step(radial: Vector3, velocity: Vector3, dt: float, mu: float 
 
 
 static func orbital_elements(radial: Vector3, velocity: Vector3, mu: float = MU, body_radius: float = PLANET_RADIUS) -> Dictionary:
-	var radius := maxf(radial.length(), 1.0)
+	# Keep the scalar conic calculation in doubles. Vector cross products and
+	# length_squared round before division, moving a circular apsis by decimetres
+	# at the current planet radius even when the input state is representable.
+	var radius := maxf(sqrt(dot_double(radial, radial)), 1.0)
 	var up := radial / radius
-	var speed_squared := velocity.length_squared()
-	var momentum := radial.cross(velocity) # Specific angular momentum, m²/s.
-	var eccentricity_vector := velocity.cross(momentum) / mu - up
+	var speed_squared := dot_double(velocity, velocity)
+	var radial_speed := dot_double(radial, velocity)
+	var hx := float(radial.y) * velocity.z - float(radial.z) * velocity.y
+	var hy := float(radial.z) * velocity.x - float(radial.x) * velocity.z
+	var hz := float(radial.x) * velocity.y - float(radial.y) * velocity.x
+	var momentum := Vector3(hx, hy, hz) # Specific angular momentum, m²/s.
+	var momentum_squared := hx * hx + hy * hy + hz * hz
+	var eccentricity_vector := Vector3.ZERO
+	for axis in range(3):
+		eccentricity_vector[axis] = ((speed_squared - mu / radius) * float(radial[axis]) - radial_speed * float(velocity[axis])) / mu
 	var eccentricity := eccentricity_vector.length()
 	var energy := 0.5 * speed_squared - mu / radius # Specific energy, J/kg.
 	# Float32 vectors cannot reliably distinguish an exactly parabolic orbit
@@ -53,11 +63,11 @@ static func orbital_elements(radial: Vector3, velocity: Vector3, mu: float = MU,
 	var parabolic := absf(energy) <= (mu / radius) * 0.000001
 	var bound := energy < 0.0 and not parabolic
 	var semimajor := INF if parabolic else -mu / (2.0 * energy)
-	var semilatus := momentum.length_squared() / mu
+	var semilatus := momentum_squared / mu
 	var periapsis := semilatus / (1.0 + eccentricity) - body_radius
 	var apoapsis := semimajor * (1.0 + eccentricity) - body_radius if bound else INF
 	var period := TAU * sqrt(semimajor * semimajor * semimajor / mu) if bound else INF
-	var plane_defined := momentum.length_squared() > radius * radius * maxf(speed_squared, 1.0) * 1e-12
+	var plane_defined := momentum_squared > radius * radius * maxf(speed_squared, 1.0) * 1e-12
 	var prograde := velocity.normalized()
 	var normal := momentum.normalized() if plane_defined else Vector3.ZERO
 	return {
@@ -71,6 +81,9 @@ static func orbital_elements(radial: Vector3, velocity: Vector3, mu: float = MU,
 		"normal": normal, "antinormal": -normal,
 		"radial_out": prograde.cross(normal), "radial_in": normal.cross(prograde)
 	}
+
+static func dot_double(a: Vector3, b: Vector3) -> float:
+	return float(a.x) * b.x + float(a.y) * b.y + float(a.z) * b.z
 
 
 static func coast_path(radial: Vector3, velocity: Vector3, max_radius: float, samples: int = 720, mu: float = MU, body_radius: float = PLANET_RADIUS) -> PackedVector3Array:

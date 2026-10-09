@@ -167,7 +167,8 @@ def capture(args, output, lab):
     scenarios = list(dict.fromkeys(args.scenario or lab['scenarios']))
     if set(scenarios) - lab['scenarios'].keys():
         raise ValueError('Unknown scenario; use ./perf.sh scenarios')
-    godot = args.godot or os.environ.get('GODOT_BIN') or shutil.which('godot') or shutil.which('godot4') or '/tmp/aphelion-godot/Godot_v4.5.1-stable_linux.x86_64'
+    double_bin = Path.home() / 'godot-double/src/bin/godot.linuxbsd.editor.double.x86_64'
+    godot = args.godot or os.environ.get('GODOT_BIN') or (str(double_bin) if double_bin.is_file() else None) or shutil.which('godot') or shutil.which('godot4') or '/tmp/aphelion-godot/Godot_v4.5.1-stable_linux.x86_64'
     if not Path(godot).is_file():
         raise ValueError('Godot not found; set GODOT_BIN or --godot')
     slug = re.sub(r'[^a-zA-Z0-9_-]+', '-', args.label).strip('-')[:60] or 'capture'

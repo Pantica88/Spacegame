@@ -9,7 +9,7 @@ class DetailedFlight extends Flight:
 
 func prepare(model) -> void:
 	model.state.status = "flying"
-	model.state.position = Vector3(0, 30000, 0)
+	model.state.position = Vector3(0, Flight.ATMOSPHERE_HEIGHT + 30000.0, 0)
 	model.state.velocity = Vector3(620, 0, 0)
 	model.state.engine_on = false
 	model._separate_core()
@@ -62,7 +62,7 @@ func run() -> void:
 
 	var world := World.new()
 	root.add_child(world)
-	world._last_altitude = 30000.0
+	world._last_altitude = Flight.ATMOSPHERE_HEIGHT + 30000.0
 	world.camera.position = Vector3(0, 0, 50)
 	world.camera.look_at(Vector3.ZERO)
 	var node := Node3D.new()
@@ -87,7 +87,7 @@ func run() -> void:
 	world._sync_detached({"detached": [piece]}, Vector3.ZERO)
 	assert(node.visible, "Low-altitude stages remain visible even when small")
 	assert(world.debris_markers.size() == 1 and is_equal_approx(float(world.debris_markers[0].distance), Vector3(piece.position).length()), "Tracking label measures distance from the vessel")
-	world._last_altitude = 30000.0
+	world._last_altitude = Flight.ATMOSPHERE_HEIGHT + 30000.0
 	piece.fuel = 1.0
 	piece.thrust = 100.0
 	world._sync_detached({"detached": [piece]}, Vector3.ZERO)

@@ -2,6 +2,7 @@ extends SceneTree
 const Definition = preload("res://scripts/planet_definition.gd")
 const Terrain = preload("res://scripts/planet_terrain.gd")
 const Baker = preload("res://scripts/planet_baker.gd")
+const Fixture = preload("res://tests/terrain_fixture.gd")
 
 func _initialize() -> void:
 	var settings := Definition.new()
@@ -47,7 +48,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	assert(absf(float(runtime.contact(Vector3.UP*600000.0).radius)-600000.0) < 0.1)
+	assert(absf(float(runtime.contact(Terrain.LAUNCH_DIRECTION * loaded.radius).radius) - loaded.radius) < 0.1)
 	var snowy_color := runtime.color_at(Vector3.DOWN, loaded.relief * 1.5, false)
 	loaded.has_snow = false
 	var snowless := Terrain.new(loaded)
@@ -68,14 +69,22 @@ func _check_visible_contacts(terrain: RefCounted) -> bool:
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
 	for offset in range(0, indices.size(), 3003):
-		var point := (vertices[indices[offset]] + vertices[indices[offset + 1]] + vertices[indices[offset + 2]]) / 3.0
+		var a := vertices[indices[offset]]
+		var b := vertices[indices[offset + 1]]
+		var c := vertices[indices[offset + 2]]
+		var point := a + ((b - a) + (c - a)) / 3.0
 		for time in [0.0, 360.0]:
-			var radial: Vector3 = terrain.rotation_at(time) * point
-			if absf(terrain.clearance(radial, time)) >= 0.03:
+			var rotation: Basis = terrain.rotation_at(time)
+			var radial: Vector3 = rotation * point
+			var expected_radius := Fixture.plane_radius(a, b, c, radial, rotation)
+			if absf(float(terrain.contact(radial, time).radius) - expected_radius) >= 0.0001:
 				push_error("Baked visible triangle must lie on the physical surface, including rotation")
 				return false
-			var hit: Dictionary = terrain.segment_hit(radial + radial.normalized() * 10.0, radial - radial.normalized() * 10.0, time, time)
-			if hit.is_empty() or Vector3(hit.position).distance_to(radial) >= 0.03:
+			var start := radial + radial.normalized() * 10.0
+			var finish := radial - radial.normalized() * 10.0
+			var hit: Dictionary = terrain.segment_hit(start, finish, time, time)
+			var expected_fraction := Fixture.plane_fraction(a, b, c, rotation.transposed() * start, rotation.transposed() * finish)
+			if hit.is_empty() or absf(float(hit.fraction) - expected_fraction) >= 0.000001:
 				push_error("Swept impacts must stop at the visible baked triangle")
 				return false
 	return true

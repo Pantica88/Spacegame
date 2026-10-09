@@ -529,7 +529,7 @@ func _run() -> void:
 	game.world.sync_flight(game.flight.telemetry(), 0.0)
 	game._update_flight_ui()
 	await capture("booster-flight")
-	check(game.stage_button.text.to_lower().contains("ignite core"), "HUD previews the next planned action")
+	check(game.stage_button.text == "SPACE   Activate stage 02" and game.flight_stage_list.get_children().any(func(group): return group.index == 1 and group.indicators.any(func(item): return "ignite:engine" in item.members)), "HUD previews the next planned action")
 	game._stage()
 	check(game.flight.state.engine_on and not game.flight.state.boosters_attached, "Space performs combined booster separation and core ignition")
 	game.sound.shutdown()

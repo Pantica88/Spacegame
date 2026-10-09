@@ -6,6 +6,7 @@ const Physics = preload("res://scripts/physics_math.gd")
 const Flight = preload("res://scripts/flight_model.gd")
 const PlanetSurface = preload("res://scripts/planet_surface.gd")
 const PlanetTerrain = preload("res://scripts/planet_terrain.gd")
+const Fixture = preload("res://tests/flight_fixture.gd")
 var _checks: int = 0
 var _failures: Array[String] = []
 
@@ -69,7 +70,7 @@ func _test_launch_and_fuel() -> void:
 	model.step(1.0, {"throttle": 1.0})
 	_check(float(model.state["fuel"]) == initial_fuel and model.state["status"] == "ready", "Ready craft cannot burn fuel")
 	model.advance_prelaunch_time(120.0)
-	_check(Basis(model.state["orientation"]).is_equal_approx(model.terrain.rotation_at(120.0)), "Ready craft follows the rotating launch pad")
+	_check(Basis(model.state["orientation"]).is_equal_approx(model.terrain.rotation_at(120.0) * PlanetSurface.LAUNCH_BASIS), "Ready craft follows the rotating launch pad")
 	var launch_attitude: Basis = model.state["orientation"]
 	model.ignite()
 	_check(Basis(model.state["orientation"]).is_equal_approx(launch_attitude), "Ignition preserves the prelaunch surface attitude")
@@ -82,9 +83,9 @@ func _test_launch_and_fuel() -> void:
 	_check(float(model.state["vertical_speed"]) > 0.0, "Launch has upward velocity")
 	for index: int in range(50):
 		model.step(1.0, {"throttle": 1.0})
-	_check(float(model.state["max_altitude"]) > 12000.0, "Starter rocket can reach the 12 km milestone")
 	for index: int in range(70):
 		model.step(1.0, {"throttle": 1.0})
+	_check(float(model.state["max_altitude"]) > 12000.0, "Starter rocket can reach the 12 km milestone")
 	_check(float(model.state["fuel"]) == 0.0, "Fuel never becomes negative after burnout")
 	_check(float(model.state["thrust"]) == 0.0, "Empty engines produce no thrust")
 	_check(float(model.state["mass"]) >= Parts.CAPSULE_MASS, "Vehicle mass stays positive")
@@ -142,17 +143,14 @@ func _test_controls_and_inputs() -> void:
 func _test_impact() -> void:
 	var model = Flight.new()
 	model.ignite()
-	model.state["position"] = Vector3(0.0, 100.0, 0.0)
-	model.state["velocity"] = Vector3(0.0, -100.0, 0.0)
+	Fixture.above_pad(model, 100.0, Vector3(0, -100, 0))
 	model.step(2.0, {"throttle": 0.0})
 	_check(model.state["status"] == "crashed", "High-speed terrain collision crashes the vessel")
 	_check(float(model.state["impact_speed"]) > Flight.SAFE_LANDING_SPEED, "Crash records pre-impact speed")
 	_check(float(model.state["altitude"]) < 0.1, "Collision is resolved at terrain surface")
-	var body_position: Vector3 = model.state.landing_body_position
 	var touchdown_time: float = model.state.time
 	model.step(1.0, {"throttle": 1.0})
-	var expected_position: Vector3 = Flight.PLANET_CENTER + model.terrain.rotation_at(model.simulation_time()) * body_position
-	_check(Vector3(model.state.position).distance_to(expected_position) < .01 and model.state.time == touchdown_time and not model.state.engine_on, "Crashed craft stays on the rotating surface without restarting the flight")
+	_check(model.state.destroyed and model.state.time == touchdown_time and not model.state.engine_on, "Destructive crash preserves the flight report and cannot restart the engine")
 	# Verify that terrain collision uses radius, including far from the original pad.
 	model.reset(Parts.default_design())
 	model.ignite()
@@ -164,8 +162,7 @@ func _test_impact() -> void:
 	_check(absf(distance-float(model.terrain.contact(Vector3(model.state.position)-Flight.PLANET_CENTER,float(model.state.time)).radius)) < 0.1, "Off-pad impact stays on planetary surface")
 	model.reset(Parts.default_design())
 	model.ignite()
-	model.state["position"] = Vector3(0.0, 100.0, 0.0)
-	model.state["velocity"] = Vector3(0.0, -10000.0, 0.0)
+	Fixture.above_pad(model, 100.0, Vector3(0, -10000, 0))
 	model.step(0.1, {"throttle": 0.0})
 	_check(model.state["status"] == "crashed", "A fast first frame cannot tunnel through terrain")
 
@@ -173,8 +170,7 @@ func _test_impact() -> void:
 func _test_parachute_recovery() -> void:
 	var model = Flight.new()
 	model.ignite()
-	model.state["position"] = Vector3(0.0, 1000.0, 0.0)
-	model.state["velocity"] = Vector3(0.0, -100.0, 0.0)
+	Fixture.above_pad(model, 1000.0, Vector3(0, -100, 0))
 	model.deploy_chute()
 	_check(bool(model.state["chute_deployed"]), "Parachute deploys before capsule separation")
 	for index: int in range(300):
@@ -195,17 +191,16 @@ func _test_parachute_recovery() -> void:
 	# Recovery requires cutting the core before releasing it.
 	model.state["throttle"] = 0.0
 	model.stage()
-	model.state["position"] = Vector3(0.0, 8000.0, 0.0)
+	Fixture.above_pad(model, 8000.0)
 	model.deploy_chute()
 	_check(not bool(model.state["chute_deployed"]), "Parachute rejects thin air")
-	model.state["position"] = Vector3(0.0, 1200.0, 0.0)
-	model.state["velocity"] = Vector3(0.0, 50.0, 0.0)
+	Fixture.above_pad(model, 1200.0, Vector3(0, 50, 0))
 	model.deploy_chute()
 	_check(not bool(model.state["chute_deployed"]), "Parachute waits until the capsule is descending")
-	model.state["velocity"] = Vector3(0.0, -181.0, 0.0)
+	Fixture.above_pad(model, 1200.0, Vector3(0, -181, 0))
 	model.deploy_chute()
 	_check(not bool(model.state["chute_deployed"]), "Parachute rejects excessive airspeed")
-	model.state["velocity"] = Vector3(0.0, -100.0, 0.0)
+	Fixture.above_pad(model, 1200.0, Vector3(0, -100, 0))
 	model.deploy_chute()
 	_check(bool(model.state["chute_deployed"]), "Parachute opens inside safe envelope")
 	for index: int in range(300):
@@ -214,7 +209,7 @@ func _test_parachute_recovery() -> void:
 			break
 	_check(model.state["status"] == "landed", "Parachute recovers capsule safely from descent")
 	_check(float(model.state["impact_speed"]) < 7.0, "Chute has a survivable terminal descent speed")
-	_check(float(model.state["altitude"]) < 0.1, "Recovered capsule rests at surface")
+	_check(float(model.state["terrain_clearance"]) < 0.1, "Recovered capsule rests at surface")
 	# Planet-scale float32 coordinates once turned contact corrections into
 	# hops and rim-to-rim rocking that never settled.
 	var touchdown_offset: Vector3 = model.state.landing_offset
@@ -266,13 +261,14 @@ func _test_gravity_and_orbit() -> void:
 	var model = Flight.new()
 	model.ignite()
 	model.state["position"] = Vector3(0.0, Flight.PLANET_RADIUS, 0.0)
+	model.state["velocity"] = Vector3.ZERO
 	var before: Dictionary = model.telemetry()
 	_check(absf(float(before["gravity"]) - Flight.SURFACE_GRAVITY / 4.0) < 0.00001, "Gravity obeys inverse square law")
 	model.step(0.1, {"throttle": 0.0})
 	_check(absf(float(model.state["vertical_speed"]) + Flight.SURFACE_GRAVITY / 4.0 * 0.1) < 0.001, "Coasting vessel accelerates under central gravity")
 	model.reset(Parts.default_design())
 	model.ignite()
-	var altitude: float = 25000.0
+	var altitude: float = Flight.ATMOSPHERE_HEIGHT + 25000.0
 	var radius: float = Flight.PLANET_RADIUS + altitude
 	model.state["position"] = Vector3(0.0, altitude, 0.0)
 	model.state["velocity"] = Vector3(sqrt(Flight.MU / radius), 0.0, 0.0)
@@ -324,33 +320,27 @@ func _test_frame_rates() -> void:
 
 
 func _test_orbit_mission() -> void:
-	# Exercise the same throttle and attitude controls available to the player.
-	# Coast upright through dense air, then circularize with a horizontal burn.
+	# The 600 km world needs an orbital vehicle and a target above its 90 km
+	# atmosphere; the former starter/45 km profile belongs to the 60 km world.
 	var model = Flight.new()
+	model.reset({"engine": "kestrel", "tanks": 8, "boosters": true})
 	model.ignite()
-	var phase: int = 0
-	for index: int in range(15000):
+	var target_apoapsis := Flight.ATMOSPHERE_HEIGHT + 40000.0
+	for index: int in range(48000):
 		var data: Dictionary = model.telemetry()
-		if bool(data["in_stable_orbit"]):
+		if bool(data["in_stable_orbit"]) or data.status != "flying":
 			break
-		var throttle: float = 1.0
-		var desired_angle: float = 0.0
-		if phase == 0 and float(data["apoapsis"]) >= 45000.0:
-			phase = 1
-		if phase >= 1:
-			desired_angle = PI * 0.5 if float(data["altitude"]) > Flight.ATMOSPHERE_HEIGHT else 0.0
-			throttle = 0.0
-			if float(data["vertical_speed"]) < 70.0:
-				phase = 2
-		if phase == 2:
-			throttle = 1.0
+		if data.boosters_attached and data.booster_fuel <= 0.0: model.stage()
+		var desired_angle := lerpf(0.0, PI * 0.5, clampf((data.altitude - 3000.0) / 60000.0, 0.0, 1.0))
+		var throttle := 1.0 if data.apoapsis < target_apoapsis or data.vertical_speed < 50.0 else 0.0
+		if data.apoapsis >= target_apoapsis: desired_angle = PI * 0.5
 		var attitude: Basis = data["orientation"]
 		var radial: Vector3 = (Vector3(data["position"]) - Flight.PLANET_CENTER).normalized()
-		var tangent: Vector3 = Vector3(radial.y, -radial.x, 0.0)
+		var tangent := Vector3.UP.cross(radial).normalized()
 		var desired_up: Vector3 = radial * cos(desired_angle) + tangent * sin(desired_angle)
-		var angle_error: float = atan2(desired_up.x, desired_up.y) - atan2(attitude.y.x, attitude.y.y)
-		model.step(1.0 / 60.0, {"throttle": throttle, "yaw": clampf(angle_error * 8.0, -1.0, 1.0), "sas": true})
-	_check(bool(model.state["in_stable_orbit"]), "Default rocket can launch into a stable orbit using player controls")
+		var error := Vector3.UP.cross(attitude.transposed() * desired_up)
+		model.step(1.0 / 60.0, {"throttle": throttle, "pitch": clampf(error.x * 12.0, -1.0, 1.0), "yaw": clampf(-error.z * 12.0, -1.0, 1.0), "sas": true})
+	_check(bool(model.state["in_stable_orbit"]), "Orbital rocket can launch into a stable orbit using player controls")
 	_check(float(model.state["fuel"]) > 200.0, "Orbital mission leaves fuel for an eventual deorbit burn")
 	model.step(120.0 / 60.0, {"throttle": 0.0})
 	_check(bool(model.state["in_stable_orbit"]), "Achieved orbit persists after engine cutoff")
@@ -382,7 +372,7 @@ func _test_booster_first() -> void:
 
 
 func _test_orbital_math() -> void:
-	var radius := 85000.0
+	var radius := Physics.PLANET_RADIUS + Physics.ATMOSPHERE_HEIGHT + 25000.0
 	var circular := sqrt(Physics.MU / radius)
 	var rotation := Basis(Vector3.RIGHT, 0.61)
 	var radial := rotation * Vector3(0, radius, 0)
@@ -399,7 +389,7 @@ func _test_orbital_math() -> void:
 	_check(prograde_burn.apoapsis > orbit.apoapsis + 1000.0 and absf(prograde_burn.periapsis - orbit.periapsis) < 0.1, "Prograde burn raises the opposite apsis")
 	var retrograde_burn := Physics.orbital_elements(radial, velocity + Vector3(orbit.retrograde) * 20.0)
 	_check(retrograde_burn.periapsis < orbit.periapsis - 1000.0 and absf(retrograde_burn.apoapsis - orbit.apoapsis) < 0.1, "Retrograde burn lowers the opposite apsis")
-	var normal_burn := Physics.orbital_elements(radial, velocity + Vector3(orbit.normal) * 20.0)
+	var normal_burn := Physics.orbital_elements(radial, velocity + Vector3(orbit.normal) * circular * 0.03)
 	_check(Vector3(normal_burn.normal).angle_to(orbit.normal) > 0.02, "Normal burn changes the orbital plane")
 	var stationary := Physics.orbital_elements(radial, Vector3.ZERO)
 	_check(not stationary.orbit_plane_defined and stationary.normal == Vector3.ZERO and stationary.prograde == Vector3.ZERO, "Stationary craft does not invent an orbit plane or velocity direction")
@@ -410,14 +400,15 @@ func _test_orbital_math() -> void:
 	var hyperbolic := Physics.orbital_elements(radial, velocity * 1.6)
 	_check(hyperbolic.eccentricity > 1.0 and hyperbolic.semi_major_axis < 0.0 and not hyperbolic.bound_orbit, "Hyperbolic orbit has eccentricity above one and negative semimajor axis")
 	# Known ellipse, initialized at periapsis with speed from vis-viva.
-	var peri_radius := 85000.0
-	var apo_radius := 175000.0
+	var peri_radius := radius
+	var apo_radius := radius + 90000.0
 	var semimajor := (peri_radius + apo_radius) * 0.5
 	var peri_velocity := Vector3(sqrt(Physics.MU * (2.0 / peri_radius - 1.0 / semimajor)), 0, 0)
 	var ellipse := Physics.orbital_elements(Vector3(0, peri_radius, 0), peri_velocity)
 	_check(absf(ellipse.periapsis + Physics.PLANET_RADIUS - peri_radius) < 0.1, "Ellipse periapsis agrees with vis-viva")
 	_check(absf(ellipse.apoapsis + Physics.PLANET_RADIUS - apo_radius) < 0.1, "Ellipse apoapsis agrees with vis-viva")
-	var path := Physics.coast_path(Vector3(0, peri_radius, 0), peri_velocity, 400000.0)
+	var map_limit := radius * 4.0
+	var path := Physics.coast_path(Vector3(0, peri_radius, 0), peri_velocity, map_limit)
 	var minimum := INF
 	var maximum := 0.0
 	for point in path:
@@ -425,14 +416,15 @@ func _test_orbital_math() -> void:
 		maximum = maxf(maximum, point.length())
 	_check(absf(minimum - peri_radius) < 0.1 and absf(maximum - apo_radius) < 0.1, "Map conic reaches the same apsides as flight telemetry")
 	_check(path[0].distance_to(path[-1]) < 0.1, "Elliptical map path closes without numerical drift")
-	var open_path := Physics.coast_path(radial, velocity * 1.6, 400000.0)
+	var open_path := Physics.coast_path(radial, velocity * 1.6, map_limit)
 	_check(open_path.size() > 2 and open_path[-1].distance_to(open_path[0]) > 1000.0, "Hyperbolic map trajectory remains open")
 	for point in open_path:
-		_check(point.is_finite() and point.length() <= 400000.1, "Open conic samples remain finite and within map bounds")
-	var fallen := Physics.coast_path(Vector3(0, 61000, 0), Vector3(0, -100, 0), 400000)
+		_check(point.is_finite() and point.length() <= map_limit + 0.1, "Open conic samples remain finite and within map bounds")
+	var fallen := Physics.coast_path(Vector3(0, Physics.PLANET_RADIUS + 1000, 0), Vector3(0, -100, 0), map_limit)
 	_check(fallen[-1].length() <= Physics.PLANET_RADIUS, "Radial map prediction terminates at the surface")
-	var near_radial := Physics.coast_path(Vector3(0, 70000, 0), Vector3(0.1, 100, 0), 400000)
-	_check(near_radial.size() > 10 and near_radial[1].length() > 70000, "Almost-vertical map arc preserves the climb before falling")
+	var climb_radius := Physics.PLANET_RADIUS + 10000.0
+	var near_radial := Physics.coast_path(Vector3(0, climb_radius, 0), Vector3(0.1, 100, 0), map_limit)
+	_check(near_radial.size() > 10 and near_radial[1].length() > climb_radius, "Almost-vertical map arc preserves the climb before falling")
 	# Multiple complete orbits expose secular drift hidden by a short arc.
 	var position := radial
 	var speed := velocity

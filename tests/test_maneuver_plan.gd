@@ -11,7 +11,7 @@ func check(ok: bool, message: String) -> void:
 func _initialize() -> void:
 	var mu := Physics.MU
 	var radius := Physics.PLANET_RADIUS
-	var r := Vector3(radius + 40000.0, 0, 0)
+	var r := Vector3(radius + Physics.ATMOSPHERE_HEIGHT + 40000.0, 0, 0)
 	var v := Vector3(0, sqrt(mu / r.length()), 0)
 	var period := TAU * sqrt(pow(r.length(), 3.0) / mu)
 	var quarter := Plan.propagate(r, v, period / 4.0, mu, radius)

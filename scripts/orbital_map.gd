@@ -521,10 +521,12 @@ func _update_camera() -> void:
 	var system_distance := distance
 	camera.near = 0.5
 	camera.far = maxf(100000.0, distance * 3.0)
-	render_origin = target if system_focus and focus_index >= 0 else Vector3.ZERO
+	var focused_body := system_focus and focus_index >= 0
+	var focused_craft := not system_focus and local_focus_craft
+	render_origin = target if focused_body or focused_craft else Vector3.ZERO
 	render_root.position = -render_origin
-	if system_focus and focus_index >= 0:
-		var definition := planet_definitions[focus_index]
+	if focused_body or focused_craft:
+		var definition: Resource = planet_definitions[focus_index] if focused_body else Surface.home().definition
 		distance = maxf(framing_distance, (float(definition.radius) + float(definition.atmosphere_height) + float(definition.relief)) * 0.002)
 		camera.far = maxf(10000.0, distance * 3.0)
 	camera.position = (target-render_origin)+Vector3(sin(yaw)*cos(pitch),sin(pitch),cos(yaw)*cos(pitch))*distance
@@ -561,14 +563,14 @@ func _update_camera() -> void:
 # The distant pass shares geometry and the orthographic span, but has its
 # own depth range. The close pass retains full precision on the focused body.
 func _update_background(system_distance: float) -> void:
-	var focused := system_focus and focus_index >= 0
+	var focused := (system_focus and focus_index >= 0) or (not system_focus and local_focus_craft)
 	viewport.transparent_bg = focused
 	background_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if focused else SubViewport.UPDATE_DISABLED
 	camera.cull_mask = 1
 	_set_render_layer(render_root, 2 if focused else 1)
 	if not focused:
 		return
-	_set_render_layer(bodies[focus_index], 1)
+	_set_render_layer(bodies[focus_index] if system_focus else globe, 1)
 	background_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	background_camera.size = camera.size
 	background_camera.near = 0.5
@@ -659,7 +661,7 @@ func _project_map_position(point: Vector3) -> Vector2:
 	return camera.unproject_position(point-render_origin)
 
 func _map_position_behind(point: Vector3) -> bool:
-	return background_camera.is_position_behind(point-render_origin) if system_focus and focus_index >= 0 else camera.is_position_behind(point-render_origin)
+	return background_camera.is_position_behind(point-render_origin) if viewport.transparent_bg else camera.is_position_behind(point-render_origin)
 
 func _camera_target() -> Vector3:
 	if system_focus:

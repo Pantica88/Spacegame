@@ -32,6 +32,8 @@ func run() -> void:
 		game.design = Craft.project(assembly,design)
 		await game._roll_out()
 		var module = game.world._parachute_module
+		# Exercise live terrain draping; normal gameplay now fades a baked collapse.
+		module.fade_after_landing = false
 		module.canopy.free()
 		module.canopy = TimedCloth.new()
 		module.add_child(module.canopy)

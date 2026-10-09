@@ -9,8 +9,11 @@ Goal: many planets and moons that the player can fly to, orbit and land on. This
 Update this checklist as work lands. A new session should read this section first.
 
 - [ ] **1. Double-precision Godot build** — in progress (see [step 1 progress](#step-1-progress))
-- [ ] **2. Per-body definitions instead of hardcoded radius** — not started
-- [ ] **3. Spheres of influence and reference frames** — not started
+- [ ] **Prerequisite for 2 and 3:** the full `tools/check.sh` suite passes (Codex is fixing the 19 baseline failures, 2026-10-09). Steps 2 and 3 refactor `flight_model.gd`, so they need the suite as a safety net and must not run in parallel with that fix.
+- [ ] **2. Per-body definitions and body registry instead of hardcoded radius** — not started
+- [ ] **3. Spheres of influence and per-vessel reference frames (multiplayer-ready)** — not started
+
+Order: 1 → passing suite → 2 → 3, before visiting other planets. Designing planets in the editor can continue meanwhile; their `.tres` and bake format does not change.
 - [ ] **4. Distant-body rendering** — not started
 - [x] **5. Bake storage at many-body scale** — reference-aware cleanup and dry-run tool complete
 - [ ] **Open decision:** Mun size (see below)
@@ -72,6 +75,8 @@ Everything for this step lives in `~/godot-double/`:
 | `run-suite.sh` | Runs every `tools/check.sh` check with fresh XDG folders and keeps going after failures. Usage: `run-suite.sh <project> <godot> <out_dir>` |
 | `proj-single/`, `proj-double/` | Copies of the project (no `build/`, `.git`, `.godot`) so test reimports and writes never touch the working tree |
 | `results-single/`, `results-double/` | Per-check logs and `summary.tsv` |
+| `patches/` | Engine patches applied to `src/`, plus `*.ISSUE.md` drafts for reporting them upstream (not posted) |
+| `build-templates.sh` | Applies `patches/` (idempotent), then builds Linux and Windows release and debug templates |
 
 - [x] Source cloned and scons installed. The system has no X11, audio or Wayland dev packages. Godot 4.5 bundles those headers and loads the libraries at runtime, so the editor configures without them.
 - [x] Editor build (2026-10-09, 20 min on 6 cores): `scons platform=linuxbsd target=editor precision=double production=yes lto=none -j6` → `src/bin/godot.linuxbsd.editor.double.x86_64`, version `4.5.1.stable.double.custom_build.f62fdbde1`. Verified: adding 1 mm to a vector at 600 km keeps 0.001 m (the official build gives 0), and adding 1 cm at 1 AU keeps 0.010 m (the official build is off by 6 km). This build had Wayland disabled; rebuild with Wayland now that `libwayland-bin` is installed. Wayland is disabled because `wayland-scanner` is missing; X11 is used instead. Shipping templates should include Wayland: `sudo apt install libwayland-bin`.
@@ -83,9 +88,17 @@ Everything for this step lives in `~/godot-double/`:
 - [x] Double-precision suite on `proj-double`: **61 / 82 passed**. Compared with the baseline, `parachute` and `radial_mass` newly pass; `eight_boosters` and `planet` newly fail. The other 19 baseline failures fail on both builds.
   - `planet`: the test expected 0 mm terrain height on the flat pad, but a flat deck rises √(R² + d²) − R above the sphere (6.5 mm at 88 m). Float32 rounded that to zero. Fixed in `tests/test_planet_surface.gd` by checking against the real rise with 1 cm tolerance; passes on the official build.
   - `eight_boosters`: **Godot engine bug in double builds.** `SurfaceTool::VertexHasher` hashes raw `Vertex` bytes, and with 8-byte-aligned `Vector3` there are 4 uninitialized padding bytes after `Color`. Identical vertices hash randomly, so `index()` merges only some of them (plume: 900 vertices on the official build, 1,493–1,663 on double, varying per run). This affects every `SurfaceTool.index()` call. Still unfixed in upstream `master` (checked 2026-10-09). Patched: `patches/0001-surface-tool-double-padding.patch` adds an explicit zeroed `padding` field under `REAL_T_IS_DOUBLE`. Reapply the patch on every engine upgrade until upstream fixes it; it is worth reporting upstream.
-- [ ] Rebuild the editor with the patch (Wayland now enabled, so a full rebuild), then re-run `eight_boosters`, `planet` and the full double suite
-- [ ] Fix failures that come from double precision
-- [ ] Linux and Windows export templates. `libwayland-bin` and `mingw-w64` are installed (2026-10-09). Godot bundles `mingw-std-threads`, so the default `win32` mingw thread model works.
+- [x] Rebuilt the editor with the patch and Wayland (2026-10-09, 20 min). `eight_boosters` and `planet` pass; the plume mesh merges to exactly 900 vertices on three consecutive runs, matching the official build.
+- [x] Full double suite on the patched editor (`results-double-patched/`): **63 / 82 passed, no regressions.** The 19 failures are a subset of the 21 baseline failures. `parachute` and `radial_mass` fail on the official build in every run and pass on double: they were float32 failures. 17 of the 19 fail with identical errors on both builds. The other two:
+  - `game_loop`: the official build fails "Altitude plus recovery completes the contract" and "Hard impact ends the retry"; double fails only the second.
+  - `planet_bake`: double passes the visible-contact check that the official build fails, then stops at line 50 (contact radius at the pad within 0.1 m of 600 km). Measured on both builds: the contact radius is 10.85 m low, and `elevation(UP)` on a default `PlanetDefinition` is **−375.8 m**. This is likely the same root cause as `launch_complex`'s 378 m deck offset.
+- [x] Fix failures that come from double precision: `planet` test tolerance and the `SurfaceTool` engine patch. No others found.
+- [ ] Linux and Windows export templates via `build-templates.sh`. `libwayland-bin` and `mingw-w64` are installed (2026-10-09). Godot 4.5 **requires the posix-thread mingw** and refuses the Mint default `win32` variant. Instead of `update-alternatives` (system-wide, needs sudo), `mingw-posix/` holds symlinks to `x86_64-w64-mingw32-{gcc,g++}-posix`, and the script puts it first on `PATH`.
+  - [x] Linux `template_release` (12 min)
+  - [ ] Windows `template_release`, Linux and Windows `template_debug`
+- [x] `tools/run.sh` (so `check.sh`, `hover.sh`, `test-plasma.sh` and `view-assets.sh`) and `tools/perf_lab.py` prefer the double editor in `~/godot-double` after `GODOT_BIN`. README and PERFORMANCE_LAB updated. `play.sh` runs the exported build, so it switches only after exporting with the double templates.
+- [ ] Re-bake Verdant (with the Mun) and Ochre in the double editor: the `custom_build` version string makes the current bakes stale, so terrain is generated at runtime (slow load) until then. One-way: the official build then sees stale bakes in turn.
+- [ ] Point `export_presets.cfg` at the double templates and export
 - [ ] Re-record the performance lab baseline on the double build
 
 ## 2. Per-body definitions
@@ -101,18 +114,29 @@ Verdant's radius is a separate constant in several places. Changing `verdant.tre
 
 Most code reaches the planet through `PlanetSurface.home()`. Radius, gravity, atmosphere and rotation should come from each body's `PlanetDefinition`. Tests that assume 600 km values should derive them from the definition.
 
+Add a body registry: every planet and moon has a stable id, and code can look up its definition, terrain and current position by id. Step 3's per-vessel `body` field refers to these ids.
+
 **Done when:** changing Verdant's radius in its `.tres` file is the only edit needed for a working build, and a test proves it at two radii.
 
-## 3. Spheres of influence and reference frames
+## 3. Spheres of influence and per-vessel reference frames
 
-Use patched conics: the craft orbits the body whose sphere of influence contains it, and the world origin and physics frame switch to that body on transition.
+Use patched conics: a vessel orbits the body whose sphere of influence contains it.
 
-- The craft feels the current body's gravity, including moons.
+**Each vessel has its own frame.** A vessel stores `body` plus position and velocity relative to that body's centre, for example `{body: "Mun", position: (0, 16200, 0)}`. There is no single world origin that follows the player's craft (a floating origin). Today the launch pad is the origin and `PLANET_CENTER` / `PlanetSurface.home()` assume one planet. Those go away.
+
+- Physics for a vessel uses only its own body's gravity, terrain and atmosphere, so numbers stay small and precise wherever the vessel is.
+- Crossing a sphere-of-influence boundary converts the state into the new body's frame and changes `body`.
+- Rendering is a view: the camera follows one vessel, and everything else is converted to camera-relative positions only for drawing. Simulation state never depends on where the camera is.
+- Debris, detached stages and parachutes carry their own `body` and frame too.
+
+**Why:** this keeps multiple vessels at different bodies valid at once, which is what multiplayer (a server simulating every player's ship) and many-vessel single-player both need. Doing it before more systems assume one origin is far cheaper than retrofitting it. Multiplayer itself is not planned yet; see [STEAM_ROADMAP.md](STEAM_ROADMAP.md). Shared time warp is its main open design question.
+
+- The vessel feels the current body's gravity, including moons.
 - The orbital map predicts encounters and transitions. It currently stops with "encounter prediction is not available."
 - Time warp keeps craft on rails within a sphere of influence.
 - Landing, terrain collision and atmosphere work on any body, not only the home planet.
 
-**Done when:** a craft can fly from Verdant orbit to a Mun landing and back, with the map predicting each transition.
+**Done when:** a craft can fly from Verdant orbit to a Mun landing and back, with the map predicting each transition, and a test simulates two vessels at different bodies in the same run.
 
 ## 4. Distant-body rendering
 

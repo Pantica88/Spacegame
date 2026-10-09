@@ -38,7 +38,8 @@ func _run() -> void:
 			check(game.flight._design.tanks == 0 and game.flight._design.engine.is_empty(), "Capsule-only rollout does not add tanks or engines")
 		if label == "unsafe staging":
 			game.flight.execute_stage()
-			check(game.flight.execute_stage().contains("blocked"), "Unsafe ignition remains blocked on the pad")
+			game.flight.execute_stage()
+			check(not game.flight.state.engine_on and not game.flight.state.active_engines.has("engine"), "Detached ignition is skipped without lighting the discarded engine")
 		game._return_workshop()
 	game.sound.shutdown()
 	game.queue_free()

@@ -85,7 +85,7 @@ func _initialize() -> void:
 	model.state.position = Vector3(0,30000,0)
 	model.stage()
 	var core: Dictionary = model.state.detached[0]
-	var craft_center: Vector3 = model.state.position+Vector3(0,1.3,0)
+	var craft_center: Vector3 = model._collision_bodies().back().position
 	core.position = craft_center+Vector3(-3,0,0)
 	core.velocity = Vector3(1500,0,0)
 	core.thrust = 0.0
@@ -99,6 +99,7 @@ func _initialize() -> void:
 	model.state.status = "flying"
 	model.state.position = Vector3(0,30000,0)
 	model.state.engine_on = true
+	model.state.orientation = Basis.IDENTITY
 	model.stage()
 	var before: Vector3 = model.state.velocity
 	check(model.state.detached[0].thrust > 0.0 and model.state.detached[0].fuel > 0.0,"Burning core retains thrust and fuel after decoupling")
@@ -107,12 +108,13 @@ func _initialize() -> void:
 	var coasting = Flight.new()
 	coasting.state = model.state.duplicate(true)
 	coasting.state.detached[0].thrust = 0.0
+	for engine in coasting.state.detached[0].engines: engine.thrust = 0.0
 	var initial_fuel: float = model.state.detached[0].fuel
 	for frame in range(120):
 		model.step(1.0/60.0, {"throttle":0,"sas":false})
 		coasting.step(1.0/60.0, {"throttle":0,"sas":false})
 	check(model.state.detached[0].fuel < initial_fuel, "Released engine burns fuel independently of capsule throttle")
-	check(model.state.velocity.y > coasting.state.velocity.y + 1.0, "Powered core catches and pushes the capsule through contact")
+	check((Vector3(model.state.velocity) - Vector3(coasting.state.velocity)).dot(model.state.orientation.y) > 1.0, "Powered core catches and pushes the capsule through contact")
 	for throttle in [0.0, 0.4, 1.0]:
 		var release = Flight.new()
 		release.state.status = "flying"

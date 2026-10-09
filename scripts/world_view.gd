@@ -1198,7 +1198,7 @@ func _build_rocket() -> void:
 				else:
 					var tank_parts: Array = _design.assembly.parts.filter(func(part): return part.kind == "tank")
 					for index in range(tank_parts.size()):
-						if tank_parts[index].id == fin_parent: fin_y = tank_base + float(tanks - 1 - index) * 2.15 + 1.075 + fin_offset
+						if tank_parts[index].id == fin_parent: fin_y = RadialCraft.tank_center(_design, fin_parent) + fin_offset
 		for index in range(4):
 			var fin := _fin(fin_parent_node, _teal, capsule_fins)
 			fin.position.y = fin_y

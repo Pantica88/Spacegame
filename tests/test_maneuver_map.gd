@@ -17,7 +17,7 @@ func run() -> void:
 	game._stage()
 	game._set_throttle(0.0)
 	game.flight.state.throttle = 0.0
-	var radial := Vector3(0.45, 0.34, 0.82).normalized() * 100000.0
+	var radial := Vector3(0.45, 0.34, 0.82).normalized() * (Physics.PLANET_RADIUS + Physics.ATMOSPHERE_HEIGHT + 10000.0)
 	var velocity := radial.normalized().cross(Vector3.UP).normalized() * sqrt(Physics.MU / radial.length())
 	game.flight.state.position = Physics.PLANET_CENTER + radial
 	game.flight.state.velocity = velocity

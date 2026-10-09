@@ -16,7 +16,7 @@ Version 0.3.26 is the current Linux development build. Run `./play.sh` from this
 
 To edit the game or run from source:
 
-Use **Godot 4.5.1 Standard** (GDScript; no .NET required). [Download the tested version](https://godotengine.org/download/archive/4.5.1-stable/).
+Use **Godot 4.5.1 built with double precision** (`precision=double`; GDScript, no .NET required). Official downloads are single precision only. Build the editor and export templates from source as described in [the multi-planet roadmap](docs/MULTI_PLANET_ROADMAP.md#1-double-precision-godot-build); the build includes a required engine patch. The official [4.5.1 download](https://godotengine.org/download/archive/4.5.1-stable/) still runs the project, but its float32 coordinates fail several precision-sensitive tests and reject bakes made by the double build.
 
 1. Open Godot, choose **Import**, and select `project.godot` in this folder.
 2. Wait for the initial asset import.
@@ -53,7 +53,7 @@ The standalone planet editor runs as its own scene:
 ./tools/run.sh res://scenes/planet_editor.tscn
 ```
 
-The script can use the temporary editor downloaded during development at `/tmp/aphelion-godot/Godot_v4.5.1-stable_linux.x86_64`. Files in `/tmp` may be removed by the operating system; keep your own Godot copy for future development.
+`tools/run.sh` (and every script that uses it, including `tools/check.sh`) picks Godot in this order: `GODOT_BIN`, the double-precision editor at `~/godot-double/src/bin/godot.linuxbsd.editor.double.x86_64`, `godot` or `godot4` on `PATH`, then the official editor downloaded during development to `/tmp/aphelion-godot/`. `./perf.sh` uses the same order.
 
 ## Controls
 
@@ -83,12 +83,12 @@ Use **two tanks, the Sparrow engine, fins on, boosters off**, with stability ass
 
 For **A little altitude**, launch straight up with **Space** at full throttle. At about **1.2 km altitude**, press **Space** again to separate the capsule. It will coast higher and then fall. Once descending below **2.5 km** and at **180 m/s or less**, activate the parachute stage with **Space**. Allow the parachute to carry the capsule to the surface.
 
-For **Around we go**, use the same design. The automated flight test reaches orbit with the following ascent profile and continuous steering corrections:
+For **Around we go**, use **eight tanks, the Kestrel engine, and paired boosters**. The automated flight test reaches orbit with this design and continuous steering corrections:
 
-1. Launch upright at full throttle. Watch **APOAPSIS**, the predicted highest point of your coast, and press **X** when it reaches about **45 km**.
-2. Coast upright until your actual **ALTITUDE** exceeds **90 km**, the top of the atmosphere.
-3. Use **D** to turn toward the horizon. Release it as the attitude instrument approaches **0° UP**, and use small **A/D** taps to stay horizontal. Stability assistance stops rotation when you release the controls.
-4. As your upward **VERTICAL SPEED** falls below about **70 m/s**, press **Z** to burn at full throttle. Keep the engine attached and maintain a horizontal heading.
+1. Launch upright at full throttle and separate the boosters when they run out of fuel.
+2. Starting at **3 km**, gradually turn east toward the horizon, reaching a horizontal attitude near **63 km**. Stability assistance stops rotation when you release the controls; continue making small steering corrections.
+3. Watch **APOAPSIS**, the predicted highest point of your coast, and press **X** when it reaches about **130 km**. Coast toward it while holding an eastward horizontal heading.
+4. As your upward **VERTICAL SPEED** falls below about **50 m/s**, press **Z** to burn at full throttle. Keep the engine attached and maintain the horizontal heading.
 5. Watch **PERIAPSIS**, the lowest point of the coast. When it rises above **90 km** and the orbit mission completes, press **X**. Press **M** to view the predicted coast around the planet.
 
 | Contract | Completion condition |
