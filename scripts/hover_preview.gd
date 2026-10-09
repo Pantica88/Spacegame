@@ -10,7 +10,7 @@ var hover_hud: Label
 const CLOUD_DENSITIES: Array[float] = [1.0, 1.5, 2.0, 3.0, 4.0]
 # TEMPORARY A/B: J cycles the mirrored clouds' sun shadow (ocean.gdshader).
 const CLOUD_SHADINGS: Array[String] = ["current", "sky column", "sky tap", "full deck"]
-var cloud_shading := 0
+var cloud_shading := 3
 # O cycles the ocean patch's colours for tuning: albedo, albedo2, color_deep, color_shallow.
 const OCEAN_PRESETS := [
 	["tutorial", Color(0.0, 0.32, 0.43), Color(0.0, 0.47, 0.76), Color(0.11, 0.29, 0.33), Color(0.0, 0.47, 0.76)],

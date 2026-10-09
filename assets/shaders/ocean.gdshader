@@ -101,7 +101,8 @@ uniform float cloud_reflection_density = 4.0;
 // 0 current 0.5 km cap, 1 sky's column filled with the base density,
 // 2 sky's column with one tap toward the sun (one more volume read),
 // 3 sky's column, sampled through the whole deck and storm caps (mirrored_deck).
-uniform int cloud_reflection_shading = 0;
+// 0 current, 1 sky column, 2 sky tap, 3 full deck (default, chosen by the owner 2026-10-09).
+uniform int cloud_reflection_shading = 3;
 // The real sky, mirrored behind the clouds. It stands in for the environment
 // reflection, whose cubemap is a fixed gradient (sky.gdshader's cubemap pass).
 uniform float sky_reflection_strength = 1.0;
