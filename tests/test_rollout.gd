@@ -27,7 +27,9 @@ func _run() -> void:
 	var low_thrust := craft.duplicate(true)
 	Parts.Craft.add_part(craft,"decoupler")
 	craft.stages = [["separate:decoupler"],["ignite:engine"],["deploy:capsule"]]
-	var cases := {"capsule only":capsule,"no engine":no_engine,"low thrust":low_thrust,"unsafe staging":craft}
+	var unsafe := craft.duplicate(true)
+	unsafe.stages = [["separate:decoupler", "ignite:engine"], ["deploy:capsule"]]
+	var cases := {"capsule only":capsule,"no engine":no_engine,"low thrust":low_thrust,"detached ignition":craft,"unsafe staging":unsafe}
 	for label in cases:
 		game.design = Parts.Craft.project(cases[label],Parts.default_design())
 		game._refresh_design(false)
@@ -37,9 +39,15 @@ func _run() -> void:
 		if label == "capsule only":
 			check(game.flight._design.tanks == 0 and game.flight._design.engine.is_empty(), "Capsule-only rollout does not add tanks or engines")
 		if label == "unsafe staging":
+			check(game.flight.execute_stage().contains("blocked"), "A stage cannot detach and ignite the same engine")
+			check(game.flight.state.stage_index == 0 and game.flight.state.detached.is_empty() and not game.flight.state.engine_on, "Blocked staging performs no partial actions")
+		if label == "detached ignition":
 			game.flight.execute_stage()
+			check(game.flight.state.capsule_only and game.flight.state.detached.size() == 1, "First stage releases the unlit core")
 			game.flight.execute_stage()
-			check(not game.flight.state.engine_on and not game.flight.state.active_engines.has("engine"), "Detached ignition is skipped without lighting the discarded engine")
+			check(game.flight.state.stage_index == 2 and not game.flight.state.engine_on and not game.flight.state.active_engines.has("engine"), "Detached ignition is skipped")
+			var core: Dictionary = game.flight.state.detached[0]
+			check(core.thrust == 0.0 and core.engines.all(func(engine): return engine.thrust == 0.0), "Skipped stage cannot ignite a discarded engine")
 		game._return_workshop()
 	game.sound.shutdown()
 	game.queue_free()

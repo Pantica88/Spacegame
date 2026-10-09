@@ -81,9 +81,7 @@ func _test_launch_and_fuel() -> void:
 	_check(absf(initial_fuel - float(model.state["fuel"]) - expected_burn) < 0.001, "Fuel burn follows thrust / exhaust velocity")
 	_check(float(model.state["altitude"]) > 2.0, "Default rocket lifts off")
 	_check(float(model.state["vertical_speed"]) > 0.0, "Launch has upward velocity")
-	for index: int in range(50):
-		model.step(1.0, {"throttle": 1.0})
-	for index: int in range(70):
+	for index: int in range(120):
 		model.step(1.0, {"throttle": 1.0})
 	_check(float(model.state["max_altitude"]) > 12000.0, "Starter rocket can reach the 12 km milestone")
 	_check(float(model.state["fuel"]) == 0.0, "Fuel never becomes negative after burnout")
