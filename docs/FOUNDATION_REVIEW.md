@@ -12,7 +12,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 |---|---|---|---|
 | 1 | Engine: Godot 4.5.1, custom double-precision build | OK | Upgrade to 4.8.x when stable, between roadmap steps |
 | 2 | Coordinate precision: double | OK | — |
-| 3 | Renderer: Compatibility (OpenGL 3.3) | **Undecided** | **Before more shader or visual work** |
+| 3 | Renderer: moving from Compatibility to Forward+ | **Decided, in progress** | Branch `renderer-forward-plus` |
 | 4 | Simulation in GDScript, custom flight model | Conditional | Requires step 6 (on-rails, level of detail) |
 | 5 | No Godot physics engine; all collision custom | OK | Note for docking and combat |
 | 6 | Solar system: fixed sun, no heliocentric orbits | **Gap** | Fold into step 3 |
@@ -49,7 +49,13 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 - Compatibility runs on the widest range of hardware, including old integrated GPUs. If broad low-end support is the goal, that is a valid reason to keep it.
 - The development GPU (RX 580) and Steam Deck both support Vulkan.
 
-**Decision needed:** keep Compatibility or move to Mobile or Forward+. Make it before more shader or visual work. A one-day experiment informs it: run the game and the perf lab with `--rendering-method mobile` and `forward_plus` (the perf lab currently hardcodes `gl_compatibility` in `tools/perf_lab.py`), and record which custom shaders break and how frame and GPU times compare. Record the decision and its reason here.
+**How it was chosen:** an earlier agent picked Compatibility without asking; there was no requirement behind it.
+
+**Decision (2026-10-09): move to Forward+.** Reasons: the game is a desktop Steam game, where Vulkan or Direct3D 12 GPUs are nearly universal (the RX 580 and Steam Deck support them); the vision's stations, fleets, weapons and explosions need many dynamic lights, which Forward+'s clustered lighting handles and Compatibility limits per object; compute shaders, temporal anti-aliasing and FSR2 upscaling become available; and Godot's rendering development concentrates there. The owner accepts the cost of porting custom shaders.
+
+**Stop condition:** keep Compatibility only if Forward+ has a blocker with no clear fix, or 1080p frame times on the RX 580 are clearly worse than Compatibility after reasonable tuning. Record the result here either way.
+
+**Known porting work:** `ocean.gdshader` converts depth with the OpenGL convention (`raw * 2.0 - 1.0`, `linear_depth`); `clouds.gdshader` already branches on `CURRENT_RENDERER` and shows the pattern. Forward+ renders in linear HDR where Compatibility does not, so atmosphere, sky, sun and glow colours will need re-tuning by eye. `tools/perf_lab.py` hardcodes `gl_compatibility` and needs a renderer option.
 
 ## 4. Simulation language and architecture
 
@@ -70,6 +76,8 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 **Today:** the sun is fixed at 13,599,840,256 m from Verdant (`SolarBody.DISTANCE`, the same as KSP's Kerbin orbit). Verdant does not orbit the sun in the simulation. Planet orbits around the sun exist only in the orbital map, which positions them from `orbit_distance_au` with "illustrative phases". The Mun's orbit is real (`SolarBody.moon_offset`).
 
 **Fits the vision:** no. Flying to another planet needs every planet on a real orbit around the sun, a heliocentric frame between spheres of influence, and transfer windows that come from real orbital positions.
+
+The sun's physical radius is 900 km (`SolarBody.RADIUS`), 1.5 times Verdant's. From Verdant that is about 0.008° across, against 0.53° for the real Sun; the game draws a separately scaled visual sun. The simulation does not yet define a mass for the sun; heliocentric orbits will need one, so decide the sun's radius and mass together with the system scale.
 
 **Decision:** extend step 3 to include heliocentric orbits for all planets (Keplerian rails around the sun), with Verdant moving too. Also fix the system scale: what an AU is in metres, and whether `orbit_distance_au` becomes a real semi-major axis.
 
