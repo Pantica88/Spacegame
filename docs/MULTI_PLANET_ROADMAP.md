@@ -16,7 +16,9 @@ Update this checklist as work lands. A new session should read this section firs
 Order: 1 → passing suite → 2 → 3, before visiting other planets. Designing planets in the editor can continue meanwhile; their `.tres` and bake format does not change.
 - [ ] **4. Distant-body rendering** — not started
 - [x] **5. Bake storage at many-body scale** — reference-aware cleanup and dry-run tool complete
-- [ ] **Open decision:** Mun size (see below)
+- [ ] **6. Persistent vessels and on-rails orbits** — not started (added for the game vision)
+- [ ] **7. Rendezvous and docking** — later
+- [ ] **Open decision:** Mun size (see below); the campaign opening favours a visible Mun
 
 ## Starting point (2026-10-09)
 
@@ -123,6 +125,8 @@ Most code reaches the planet through `PlanetSurface.home()`. Radius, gravity, at
 
 Add a body registry: every planet and moon has a stable id, and code can look up its definition, terrain and current position by id. Step 3's per-vessel `body` field refers to these ids.
 
+Keep physical facts separate from knowledge: the registry holds what exists, and a separate per-faction knowledge layer holds what that faction knows about each body (undiscovered, detected, observed, surveyed, explored). The orbital map and navigation read through the knowledge layer, so hidden planets can still be simulated. Build only the separation now; discovery gameplay comes later.
+
 **Done when:** changing Verdant's radius in its `.tres` file is the only edit needed for a working build, and a test proves it at two radii.
 
 ## 3. Spheres of influence and per-vessel reference frames
@@ -136,7 +140,7 @@ Use patched conics: a vessel orbits the body whose sphere of influence contains 
 - Rendering is a view: the camera follows one vessel, and everything else is converted to camera-relative positions only for drawing. Simulation state never depends on where the camera is.
 - Debris, detached stages and parachutes carry their own `body` and frame too.
 
-**Why:** this keeps multiple vessels at different bodies valid at once, which is what multiplayer (a server simulating every player's ship) and many-vessel single-player both need. Doing it before more systems assume one origin is far cheaper than retrofitting it. Multiplayer itself is not planned yet; see [STEAM_ROADMAP.md](STEAM_ROADMAP.md). Shared time warp is its main open design question.
+**Why:** the game vision (see [How the game vision shapes this plan](#how-the-game-vision-shapes-this-plan)) needs many vessels at different bodies at once: satellites left in orbit, stations, manufactured ships and AI faction fleets. Per-vessel frames keep each of them precise. The same design would also allow multiplayer later, but multiplayer is not planned; the vision is single-player with AI factions. Doing this before more systems assume one origin is far cheaper than retrofitting it.
 
 - The vessel feels the current body's gravity, including moons.
 - The orbital map predicts encounters and transitions. It currently stops with "encounter prediction is not available."
@@ -144,6 +148,19 @@ Use patched conics: a vessel orbits the body whose sphere of influence contains 
 - Landing, terrain collision and atmosphere work on any body, not only the home planet.
 
 **Done when:** a craft can fly from Verdant orbit to a Mun landing and back, with the map predicting each transition, and a test simulates two vessels at different bodies in the same run.
+
+## How the game vision shapes this plan
+
+Added 2026-10-09. The long-term vision is a single-player game that starts as rocket engineering and exploration (a mysterious object crashes on the Mun) and grows into planet discovery, orbital stations, colonies, manufacturing and AI civilizations. Multiplayer is not a requirement; AI factions are. The vision's own rule is to build one vertical slice first (Verdant → Mun → research station → manufacturing → drone encounter) and expand only if that loop is fun, consistent with [STEAM_ROADMAP.md](STEAM_ROADMAP.md).
+
+Consequences for this roadmap:
+
+- **Steps 2 and 3 are the critical path to the campaign.** Landing at the Mun crash site needs Mun gravity, terrain and landing, which the craft does not have yet.
+- **Step 2:** the body registry separates physical bodies from per-faction knowledge (discovery states).
+- **Step 3:** per-vessel frames are required for many persistent vessels and AI fleets, not only for multiplayer.
+- **Step 6 (new): persistent vessels and on-rails orbits.** Vessels not under active control stay in the save and are propagated analytically along their orbits; only vessels near the player get full physics (simulation level of detail). Saves resume flights. This is the foundation for satellites, stations, manufacturing and AI fleets.
+- **Step 7 (later): rendezvous and docking.** Two vessels in one frame with precise relative positions; needs steps 1, 3 and 6.
+- **Mun size:** the story opens with an impact visible from Verdant and early missions observe the Mun, so a Mun that is a few pixels wide (0.16°) works against it. See the open decision below.
 
 ## 4. Distant-body rendering
 
@@ -168,6 +185,8 @@ tools/run.sh --headless --script res://tools/cleanup_planet_bakes.gd -- --delete
 Dry run on 2026-10-09 found **32 orphaned bakes, 885.52 MiB**: 27 Verdant, 2 Ochre and 3 Verdant moon bakes. No existing asset bakes were deleted. Bake resolution remains a separate follow-up.
 
 ## Open decision: Mun size
+
+The campaign opening (an impact visible from Verdant, observing the Mun before flying there) favours a clearly visible Mun, in the 54–200 km range below.
 
 Mesh and bake resolution are fixed, so a bigger Mun costs almost nothing to render. Vertex spacing at the equator grows with radius: about 200 m at 16 km and about 660 m at 54 km. Surface gravity stays fixed, so mass grows with radius squared unless `surface_gravity` is lowered. Scale `relief` with radius to keep a similar look.
 
