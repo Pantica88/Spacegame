@@ -20,7 +20,8 @@ Order: 1 → passing suite → 2 → 3, before visiting other planets. Designing
 - [x] **5. Bake storage at many-body scale** — reference-aware cleanup and dry-run tool complete
 - [ ] **6. Persistent vessels and on-rails orbits** — not started (added for the game vision)
 - [ ] **7. Rendezvous and docking** — later
-- [ ] **Open decision:** Mun size (see below); the campaign opening favours a visible Mun
+- [x] **Mun size decided (2026-10-09):** radius 100 km (about 1° from Verdant, twice the real Moon's apparent size), surface gravity kept at 1.62 m/s², relief scaled to about 3 km. Implement after the Forward+ port merges, with moonlight (see below).
+- [ ] **Moonlight by phase** — after the Forward+ port: verify the Mun shows correct phases, then add a dim, cool directional light from the Mun on Verdant's night side, scaled by the Mun's illuminated fraction (full → strongest, new → none), off when the Mun is below the horizon or eclipsed by Verdant. Start at 5–15% of sunlight and tune by eye with the owner.
 
 ## Starting point (2026-10-09)
 
@@ -199,7 +200,9 @@ tools/run.sh --headless --script res://tools/cleanup_planet_bakes.gd -- --delete
 
 Dry run on 2026-10-09 found **32 orphaned bakes, 885.52 MiB**: 27 Verdant, 2 Ochre and 3 Verdant moon bakes. No existing asset bakes were deleted. Bake resolution remains a separate follow-up.
 
-## Open decision: Mun size
+## Mun size (decided)
+
+**Decision (2026-10-09):** 100 km radius. The owner wants the Mun visible at night with moonlight that follows its phase. 100 km gives about 1° from Verdant (about 25 px at 1080p with the 43° camera), twice the real Moon's apparent size, which reads clearly on a monitor. Surface gravity stays 1.62 m/s², so the Mun's mass grows with radius squared (the body registry derives mu from it). The table below records the options considered.
 
 The campaign opening (an impact visible from Verdant, observing the Mun before flying there) favours a clearly visible Mun, in the 54–200 km range below.
 
