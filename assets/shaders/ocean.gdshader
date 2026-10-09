@@ -14,6 +14,7 @@ render_mode blend_mix, cull_disabled, depth_draw_always;
 // Includes atmosphere.gdshaderinc; cloud_layer.gd mirrors its uniforms here.
 #include "res://assets/shaders/clouds_volume.gdshaderinc"
 #include "res://assets/shaders/water.gdshaderinc"
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform vec3 albedo : source_color = vec3(0.0, 0.04, 0.10);
 uniform vec3 albedo2 : source_color = vec3(0.0, 0.08, 0.18);
@@ -425,8 +426,8 @@ void fragment() {
 	depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
 	float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
 
-	vec3 screen_color = textureLod(SCREEN_TEXTURE, SCREEN_UV, depth_blend_power * 2.5).rgb;
-	vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, depth_blend_power);
+	vec3 screen_color = displayed_screen_color(textureLod(SCREEN_TEXTURE, SCREEN_UV, depth_blend_power * 2.5).rgb);
+	vec3 depth_color = mix(authored_color(color_shallow.rgb), authored_color(color_deep.rgb), depth_blend_power);
 	vec3 color = mix(screen_color * depth_color, depth_color * 0.25, depth_blend_power * 0.5);
 
 	float z_depth = depth;
@@ -444,13 +445,13 @@ void fragment() {
 		untiled(wave_bump, wave_pos, wave_dx, wave_dy, time2, noise_scale, 3), 0.3);
 
 	float fresnel = fresnel(5.0, NORMAL, VIEW);
-	vec3 surface_color = mix(albedo, albedo2, fresnel);
+	vec3 surface_color = mix(authored_color(albedo), authored_color(albedo2), fresnel);
 
 	vec3 hull_axis = hull_b - hull_a;
 	float hull_t = clamp(dot(world_pos - hull_a, hull_axis) / max(dot(hull_axis, hull_axis), 1e-6), 0.0, 1.0);
 	float hull_distance = distance(world_pos, hull_a + hull_axis * hull_t);
 	float foam = (1.0 - step(edge_scale, z_dif)) * (hull_radius > 0.0 ? smoothstep(hull_radius, hull_radius + 1.5, hull_distance) : 1.0);
-	vec3 depth_color_adj = mix(color, edge_color, foam);
+	vec3 depth_color_adj = mix(color, authored_color(edge_color), foam);
 	ALBEDO = clamp(surface_color + depth_color_adj, vec3(0.0), vec3(1.0));
 	METALLIC = metallic;
 	ROUGHNESS = roughness;
@@ -512,5 +513,7 @@ void fragment() {
 	// Replaces the environment's reflection, which is one fixed gradient in
 	// every direction: it kept the side facing away from a sunset bright.
 	RADIANCE = vec4(0.0, 0.0, 0.0, sky_reflection_strength);
+	ALBEDO = material_output(ALBEDO);
+	EMISSION = material_output(EMISSION);
 	ALPHA = fade * mix(smoothstep(0.9, 1.0, fade), 1.0, depth_blend_power) * shore;
 }

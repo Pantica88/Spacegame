@@ -56,3 +56,28 @@ vec3 stored_output(vec3 color) {
 	return exact_srgb_to_linear(color);
 #endif
 }
+
+// Godot's Filmic tonemapper (tonemap_inc.glsl) for a given white point.
+vec3 filmic_tonemap(vec3 color, float white) {
+	// A..F of the Uncharted 2 curve, with Godot's exposure bias of 2 baked in.
+	const vec3 k_ab = vec3(0.22 * 4.0, 0.30 * 2.0, 0.10);
+	const vec3 k_def = vec3(0.20, 0.01, 0.30);
+	color = max(color, vec3(0.0));
+	vec3 mapped = (color * (k_ab.x * color + k_ab.z * k_ab.y) + k_def.x * k_def.y)
+		/ (color * (k_ab.x * color + k_ab.y) + k_def.x * k_def.z) - k_def.y / k_def.z;
+	float mapped_white = (white * (k_ab.x * white + k_ab.z * k_ab.y) + k_def.x * k_def.y)
+		/ (white * (k_ab.x * white + k_ab.y) + k_def.x * k_def.z) - k_def.y / k_def.z;
+	return mapped / mapped_white;
+}
+
+// A hint_screen_texture sample as Compatibility provides it: the displayed,
+// tonemapped sRGB image. Forward+ provides linear light before tonemapping,
+// so encode it here. Assumes the flight Environment's tonemapping (Filmic,
+// white 1.0, exposure 1.0; world_view.gd _make_environment).
+vec3 displayed_screen_color(vec3 color) {
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	return color;
+#else
+	return exact_linear_to_srgb(min(filmic_tonemap(color, 1.0), vec3(1.0)));
+#endif
+}
