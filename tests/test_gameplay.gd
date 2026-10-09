@@ -1,6 +1,7 @@
 extends SceneTree
 ## Integration test for the full recover / reward / retry loop. Use tools/check.sh.
 var failures: Array[String] = []
+const Fixture = preload("res://tests/flight_fixture.gd")
 
 func _initialize() -> void:
 	var game = load("res://scenes/main.tscn").instantiate()
@@ -71,8 +72,7 @@ func _initialize() -> void:
 	await game._roll_out()
 	check(game.flight.state.status == "ready" and game.flight.state.time == 0, "Retry starts a fresh flight")
 	game._stage()
-	game.flight.state.position = Vector3(0, 100, 0)
-	game.flight.state.velocity = Vector3(0, -100, 0)
+	Fixture.above_pad(game.flight, 100.0, Vector3(0, -100, 0))
 	game.flight.step(2, {"throttle": 0})
 	game._physics_process(0.1)
 	check(not game.paused and game.modal == null, "Crash keeps the world running")

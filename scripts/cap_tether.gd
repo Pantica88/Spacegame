@@ -42,21 +42,24 @@ func advance(delta: float, pinned: bool, mouth: Vector3, axis: Vector3) -> void:
 		sleeping = false
 		_quiet_time = 0.0
 	accumulator += clampf(delta, 0, 0.1)
-	var stepped := false
 	while accumulator + 0.0000001 >= STEP:
 		accumulator -= STEP
 		_step(pinned, mouth, axis)
-		stepped = true
-	if pinned or not stepped: return
-	var motion := 0.0
-	for i in range(points.size()):
-		motion = maxf(motion, points[i].distance_squared_to(previous[i]))
-	# Under 15 cm/s at the 120 Hz step for half a second.
-	_quiet_time = _quiet_time + delta if motion < 0.0000016 else 0.0
-	if _quiet_time >= 0.5:
-		sleeping = true
-		previous = points.duplicate()
-		_rest_environment = environment
+		if pinned:
+			_quiet_time = 0.0
+			continue
+		var motion := 0.0
+		for i in range(points.size()):
+			motion = maxf(motion, points[i].distance_squared_to(previous[i]))
+		# Sleep is part of the fixed-step simulation too. Sampling only the last
+		# substep of a render frame changes which motion spikes reset quiet time.
+		_quiet_time = _quiet_time + STEP if motion < 0.0000016 else 0.0
+		if _quiet_time >= 0.5:
+			sleeping = true
+			previous = points.duplicate()
+			_rest_environment = environment
+			accumulator = 0.0
+			break
 
 func _same_environment(environment: Array) -> bool:
 	return Vector3(environment[0]).distance_squared_to(_rest_environment[0]) < 0.0025 \

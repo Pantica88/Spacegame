@@ -3,23 +3,45 @@ set -euo pipefail
 
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 check_dir="$(mktemp -d "${TMPDIR:-/tmp}/aphelion-check.XXXXXX")"
-trap 'rm -rf -- "$check_dir"' EXIT
-
-# Keep headless checks separate from the player's saved progress.
-export XDG_DATA_HOME="$check_dir/data"
-export XDG_CONFIG_HOME="$check_dir/config"
-export XDG_CACHE_HOME="$check_dir/cache"
-mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+check_pid=""
+trap 'if [[ -n "$check_pid" ]]; then kill "$check_pid" 2>/dev/null || true; fi; rm -rf -- "$check_dir"' EXIT
 
 run_check() {
     local name="$1"
     shift
+    local xdg log code=0 error_seen=""
+    xdg="$(mktemp -d "$check_dir/$name.XXXXXX")"
+    log="$check_dir/$name.log"
+    # Each process gets fresh storage, including subprocesses it launches.
+    export XDG_DATA_HOME="$xdg/data"
+    export XDG_CONFIG_HOME="$xdg/config"
+    export XDG_CACHE_HOME="$xdg/cache"
+    mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
     printf 'Checking %s...\n' "$name"
-    "$project_dir/tools/run.sh" "$@" 2>&1 | tee "$check_dir/$name.log"
-    if rg -q 'SCRIPT ERROR:|Parse Error:|ERROR:' "$check_dir/$name.log"; then
+    # The monitor can run before the background shell opens its redirection.
+    : > "$log"
+    timeout --kill-after=2s 1800 "$project_dir/tools/run.sh" "$@" > "$log" 2>&1 &
+    check_pid=$!
+    # An assertion aborts the test method before quit(), leaving SceneTree
+    # alive. Allow the backtrace to finish, then stop the entire process group.
+    while kill -0 "$check_pid" 2>/dev/null; do
+        if [[ -z "$error_seen" ]] && rg -q 'SCRIPT ERROR:|Parse Error:' "$log"; then
+            error_seen=$SECONDS
+        fi
+        if [[ -n "$error_seen" ]] && (( SECONDS - error_seen >= 2 )); then
+            kill "$check_pid" 2>/dev/null || true
+            break
+        fi
+        sleep 0.2
+    done
+    wait "$check_pid" || code=$?
+    check_pid=""
+    cat "$log"
+    if rg -q 'SCRIPT ERROR:|Parse Error:|ERROR:' "$log"; then
         printf 'Godot reported an error during %s.\n' "$name" >&2
         return 1
     fi
+    return "$code"
 }
 
 run_check import --headless --editor --quit

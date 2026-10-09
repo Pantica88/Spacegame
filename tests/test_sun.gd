@@ -8,7 +8,7 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	assert(Sun.RADIUS / Flight.PLANET_RADIUS == 15.0)
+	assert(Sun.RADIUS / Flight.PLANET_RADIUS == 1.5)
 	assert(is_equal_approx(Sun.segment_hit(Sun.POSITION + Vector3.LEFT * Sun.RADIUS * 2.0, Sun.POSITION + Vector3.RIGHT * Sun.RADIUS * 2.0), 0.25))
 	assert(Sun.segment_hit(Vector3.ZERO, Vector3.UP * 1000.0) == -1.0)
 	var flight := Flight.new()
@@ -26,9 +26,9 @@ func _run() -> void:
 	world.sync_flight(Flight.new().telemetry(), 0.0)
 	assert(world._sun_body.material_override is ShaderMaterial, "Sun uses the soft-rim shader")
 	assert(world.camera.far > world.camera.position.distance_to(world._sun_body.position) + Sun.RADIUS * world._sun_body.scale.x)
-	assert(world.camera.far < 1000000.0, "Distant sun must not degenerate the flight projection")
 	var physical_offset := world._sun_physical_position - world.camera.position
 	var visual_offset := world._sun_body.position - world.camera.position
+	assert(visual_offset.length() + Sun.RADIUS * world._sun_body.scale.x < 160001.0, "Distant sun stays within its scaled visual range independently of planet/moon clipping")
 	assert(physical_offset.normalized().dot(visual_offset.normalized()) > 0.99999)
 	assert(is_equal_approx(Sun.RADIUS * world._sun_body.scale.x / visual_offset.length(), Sun.RADIUS / physical_offset.length()))
 	world.orbit_camera(Vector2(80.0, 20.0))
@@ -43,6 +43,7 @@ func _run() -> void:
 	assert(float(world._sky_material.get_shader_parameter("sun_glow_visibility")) == 0.0, "Workshop has no sun glow")
 	var map := Map.new()
 	map.source_world = world
+	map.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(map)
 	# A flight camera near the sun must not rotate the map's daylight side.
 	world._sun_direction = Vector3.DOWN
@@ -79,6 +80,7 @@ func _run() -> void:
 	var sun_view := map.camera.global_transform.affine_inverse() * map.local_sun.position
 	var globe_view := map.camera.global_transform.affine_inverse() * map.globe.position
 	assert(Vector2(sun_view.x-globe_view.x, sun_view.y-globe_view.y).length() < 0.01)
+	assert(map._point_occluded(map.local_sun.position), "Planet terrain actually occludes the sun in the aligned view")
 	assert(sun_view.z < globe_view.z, "Sun is behind the planet, not a foreground marker")
 	map.system_focus = true
 	map._update_camera()

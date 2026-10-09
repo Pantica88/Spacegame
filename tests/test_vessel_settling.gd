@@ -1,6 +1,7 @@
 extends SceneTree
 const Flight = preload("res://scripts/flight_model.gd")
 const Parts = preload("res://scripts/parts.gd")
+const Fixture = preload("res://tests/flight_fixture.gd")
 var failures: Array[String] = []
 func check(ok: bool, message: String) -> void:
 	if not ok: failures.append(message)
@@ -9,20 +10,18 @@ func _init() -> void:
 		var model := Flight.new()
 		model.reset(Parts.default_design())
 		model.state.capsule_only = capsule
-		model.state.orientation = Basis(Vector3.FORWARD, PI / 4)
-		model.state.position = Vector3(0, 0.01, 0)
-		model.state.velocity = Vector3(0, -2, 0)
+		Fixture.above_pad(model, 0.01, Vector3(0, -2, 0), Basis(Vector3.FORWARD, PI / 4))
 		model.state.status = "flying"
 		model._has_lifted = true
 		model.step(1.0 / 60, {"throttle": 0.0})
 		check(model.state.status in ["landed", "crashed"], "Tilted vessel reaches touchdown")
 		var touchdown: Basis = model.state.orientation
-		check(touchdown.y.dot(Vector3.UP) < 0.8, "Touchdown does not snap vessel upright")
+		check(touchdown.y.dot(Flight.Surface.LAUNCH_BASIS.y) < 0.8, "Touchdown does not snap vessel upright")
 		var report_time: float = model.state.time
 		var status: String = model.state.status
 		for frame in range(600): model.step(1.0 / 60, {"throttle": 0.0})
 		check(not Basis(model.state.orientation).is_equal_approx(touchdown), "Tilted vessel continues rotating after touchdown")
-		check(absf(Basis(model.state.orientation).y.dot(Vector3.UP)) < 0.3, "Unstable vessel falls onto its side")
+		check(absf(Basis(model.state.orientation).y.dot(model.state.terrain_normal)) < 0.3, "Unstable vessel falls onto its side")
 		check(model.state.status == status and model.state.time == report_time, "Settling preserves flight result and report time")
 		check(Vector3(model.state.position).is_finite() and Vector3(model.state.angular_velocity).is_finite(), "Settling stays finite")
 		check(model.state.get("settled", false), "Quiet vessel enters persistent rest after touchdown")
@@ -32,18 +31,17 @@ func _init() -> void:
 		for frame in range(120): model.step(1.0 / 60, {"throttle": 0.0})
 		check(Vector3(model.state.landing_body_position).is_equal_approx(resting_position) and Basis(model.state.landing_body_orientation).is_equal_approx(resting_orientation), "Rest stays fixed relative to the rotating terrain")
 		var craft: Dictionary = model._collision_bodies().back()
-		var support: Vector3 = model._debris_support(craft, Vector3.UP)
-		check(model.terrain.clearance(Vector3(craft.position) + support + Vector3(0, Flight.PLANET_RADIUS, 0), model.simulation_time()) > -0.02, "Settled hull remains above terrain")
+		var support: Vector3 = model._debris_support(craft, model.state.terrain_normal)
+		check(model.terrain.clearance(Vector3(craft.position) + support - Flight.PLANET_CENTER, model.simulation_time()) > -0.02, "Settled hull remains above terrain")
 		var frozen: Basis = model.state.orientation
 		model.step(0, {"throttle": 0.0})
 		check(Basis(model.state.orientation).is_equal_approx(frozen), "Pause freezes settling")
 	var upright := Flight.new()
 	upright.state.status = "flying"
-	upright.state.position = Vector3(0, 0.01, 0)
-	upright.state.velocity = Vector3(0, -2, 0)
+	Fixture.above_pad(upright, 0.01, Vector3(0, -2, 0))
 	upright._has_lifted = true
 	for frame in range(300): upright.step(1.0 / 60, {"throttle": 0.0})
-	check(Basis(upright.state.orientation).y.dot(Vector3.UP) > 0.99, "Balanced upright landing stays upright")
+	check(Basis(upright.state.orientation).y.dot(upright.state.terrain_normal) > 0.99, "Balanced upright landing stays upright")
 	check(upright.state.get("settled", false), "Upright landing also comes to rest")
 	upright.step(1.0 / 60, {"throttle": 1.0})
 	check(upright.state.status == "flying" and not upright.state.get("settled", true), "Ignition wakes a settled fueled vessel")
@@ -52,8 +50,7 @@ func _init() -> void:
 			var impact := Flight.new()
 			impact.state.capsule_only = capsule
 			impact.state.status = "flying"
-			impact.state.position = Vector3(0, 0.01, 0)
-			impact.state.velocity = impact.terrain.surface_velocity(Vector3(0, Flight.PLANET_RADIUS, 0)) + Vector3(0, -speed, 0)
+			Fixture.above_pad(impact, 0.01, Vector3(0, -speed, 0))
 			impact._has_lifted = true
 			impact.step(1.0 / 60, {"throttle": 0.0})
 			var destructive: bool = speed > Flight.DEBRIS_BREAKUP_SPEED

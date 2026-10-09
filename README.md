@@ -83,12 +83,12 @@ Use **two tanks, the Sparrow engine, fins on, boosters off**, with stability ass
 
 For **A little altitude**, launch straight up with **Space** at full throttle. At about **1.2 km altitude**, press **Space** again to separate the capsule. It will coast higher and then fall. Once descending below **2.5 km** and at **180 m/s or less**, activate the parachute stage with **Space**. Allow the parachute to carry the capsule to the surface.
 
-For **Around we go**, use the same design. The automated flight test reaches orbit with the following ascent profile and continuous steering corrections:
+For **Around we go**, use **eight tanks, the Kestrel engine, and paired boosters**. The automated flight test reaches orbit with this design and continuous steering corrections:
 
-1. Launch upright at full throttle. Watch **APOAPSIS**, the predicted highest point of your coast, and press **X** when it reaches about **45 km**.
-2. Coast upright until your actual **ALTITUDE** exceeds **90 km**, the top of the atmosphere.
-3. Use **D** to turn toward the horizon. Release it as the attitude instrument approaches **0° UP**, and use small **A/D** taps to stay horizontal. Stability assistance stops rotation when you release the controls.
-4. As your upward **VERTICAL SPEED** falls below about **70 m/s**, press **Z** to burn at full throttle. Keep the engine attached and maintain a horizontal heading.
+1. Launch upright at full throttle and separate the boosters when they run out of fuel.
+2. Starting at **3 km**, gradually turn east toward the horizon, reaching a horizontal attitude near **63 km**. Stability assistance stops rotation when you release the controls; continue making small steering corrections.
+3. Watch **APOAPSIS**, the predicted highest point of your coast, and press **X** when it reaches about **130 km**. Coast toward it while holding an eastward horizontal heading.
+4. As your upward **VERTICAL SPEED** falls below about **50 m/s**, press **Z** to burn at full throttle. Keep the engine attached and maintain the horizontal heading.
 5. Watch **PERIAPSIS**, the lowest point of the coast. When it rises above **90 km** and the orbit mission completes, press **X**. Press **M** to view the predicted coast around the planet.
 
 | Contract | Completion condition |

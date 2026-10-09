@@ -24,13 +24,14 @@ func _init() -> void:
 		var mesh := terrain.build()
 		var vertices: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 		for point in vertices:
-			if point.y > 0 and Vector2(point.x, point.z).length() <= 149.0:
-				assert(point.y == settings.radius, "Terrain triangles must not protrude through the deck")
+			var local_point: Vector3 = Terrain.LAUNCH_BASIS.transposed() * point
+			if local_point.y > 0 and Vector2(local_point.x, local_point.z).length() <= 149.0:
+				assert(local_point.y == settings.radius, "Terrain triangles must not protrude through the deck")
 		for distance in [0.0, 25.0, 60.0, 100.0, 125.0, 149.0]:
 			for azimuth in range(0, 360, 30):
 				var angle := deg_to_rad(float(azimuth))
-				var direction := Vector3(sin(angle)*distance, settings.radius, cos(angle)*distance).normalized()
-				var surface := direction * (settings.radius + terrain.elevation(direction))
+				var direction := Terrain.LAUNCH_BASIS * Vector3(sin(angle)*distance, settings.radius, cos(angle)*distance).normalized()
+				var surface := Terrain.LAUNCH_BASIS.transposed() * (direction * (settings.radius + terrain.elevation(direction)))
 				assert(absf(surface.y - settings.radius) <= .065, "Graded terrain must share the deck datum")
 	print("PASS: launch complex assets fit graded footprint; terrain remains level across seeds and detail settings.")
 	quit()

@@ -23,6 +23,7 @@ const SAFE_LANDING_SPEED: float = 8.0
 const DEBRIS_BREAKUP_SPEED := 20.0
 const DEBRIS_RESTITUTION := 0.35
 const DEBRIS_SETTLE_SECONDS := 2.0
+const RECOVERY_ROLLING_FRICTION := 0.6
 const CHUTE_MAX_ALTITUDE: float = 2500.0
 const CHUTE_MAX_SPEED: float = 180.0
 
@@ -1448,6 +1449,11 @@ func _debris_contact(piece: Dictionary, hit: Dictionary, dt: float, time: float,
 		var impulse := normal * impulse_size - tangent_dir * friction
 		piece.velocity += impulse / maxf(piece.mass, 1.0)
 		piece.angular_momentum += arm.cross(impulse)
+		if piece.get("recoverable", false) and absf(basis.y.dot(normal)) < 0.3:
+			# A hull resting on its side has a finite contact patch. Viscous
+			# damping alone leaves a nonzero downhill rolling speed forever;
+			# dry rolling friction can balance gravity and reach static rest.
+			piece.angular_momentum = Vector3(piece.angular_momentum).move_toward(Vector3.ZERO, RECOVERY_ROLLING_FRICTION * impulse_size * float(piece.radius))
 	# Finite contact patches resist rolling and residual twisting on recovery.
 	if piece.get("recoverable", false) or (Vector3(piece.velocity) - surface_velocity).length() < 0.4:
 		piece.angular_momentum *= exp(-2.0 * dt)

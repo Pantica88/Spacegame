@@ -12,7 +12,7 @@ func flying(boosters: bool = false):
 	var model = Flight.new()
 	model.reset({"boosters": boosters})
 	model.state.status = "flying"
-	model.state.position = Vector3(0,30000,0)
+	model.state.position = Vector3(0,Flight.ATMOSPHERE_HEIGHT + 30000.0,0)
 	model.state.velocity = Vector3(120,30,-15)
 	model.state.angular_velocity = Vector3(.2,.1,-.15)
 	model.state.orientation = Basis(Vector3(1,2,3).normalized(),.5)

@@ -28,7 +28,7 @@ func _init() -> void:
 		var c := vertices[indices[offset+2]]
 		var point := (a+b+c)/3.0
 		var normal := (c-a).cross(b-a).normalized()
-		if point.y > 55000 or point.length() < 60200 or normal.dot(point.normalized()) < 0.93: continue
+		if point.dot(Terrain.LAUNCH_DIRECTION) > Surface.RADIUS * 0.92 or point.length() < Surface.RADIUS + 200.0 or normal.dot(point.normalized()) < 0.93: continue
 		for time in [0.0,360.0]:
 			var rotation: Basis = terrain.rotation_at(time)
 			var radial: Vector3 = rotation*point

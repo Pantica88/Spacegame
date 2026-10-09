@@ -1,6 +1,6 @@
 extends RefCounted
 ## Solar dimensions in metres, in the flight simulation frame.
-# Sun radius is fifteen times the home planet's radius.
+# The 900 km sun is 1.5 times the current 600 km home planet's radius.
 const RADIUS := 900000.0
 const DISTANCE := 13599840256.0
 const POSITION := Vector3(0.0, -600000.0, 0.0) + Vector3(-0.4750648667, 0.443393875, 0.7601037833) * DISTANCE

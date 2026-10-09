@@ -47,7 +47,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	assert(absf(float(runtime.contact(Vector3.UP*600000.0).radius)-600000.0) < 0.1)
+	assert(absf(float(runtime.contact(Terrain.LAUNCH_DIRECTION * loaded.radius).radius) - loaded.radius) < 0.1)
 	var snowy_color := runtime.color_at(Vector3.DOWN, loaded.relief * 1.5, false)
 	loaded.has_snow = false
 	var snowless := Terrain.new(loaded)
