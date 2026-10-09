@@ -129,8 +129,10 @@ vec3 lit_surface(vec3 col, vec3 n, vec3 radial, vec3 view_ray, vec3 sun, vec3 oc
 }
 
 // Water albedo: shallows, ripple brightness and irregular drifting shore foam.
-vec3 ocean_albedo(vec3 ocean_color, float coverage, vec3 body_pos, float footprint, float wave, float wave_visibility, float wave_a, float water_mask) {
-	vec3 ocean = ocean_body(ocean_color, coverage);
+// The base colour parameter must not be named ocean_color: terrain.gdshader has
+// a vec4 uniform of that name, and Forward+ resolves the name to the uniform.
+vec3 ocean_albedo(vec3 base_color, float coverage, vec3 body_pos, float footprint, float wave, float wave_visibility, float wave_a, float water_mask) {
+	vec3 ocean = ocean_body(base_color, coverage);
 	ocean *= 1.0 + wave * 0.24 * wave_visibility * water_wave_strength;
 	float shore_foam = (1.0-smoothstep(0.55,0.78,coverage)) * water_mask;
 	// Do not turn the coverage mask into periodic contour lines. Broad,

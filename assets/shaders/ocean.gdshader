@@ -134,7 +134,13 @@ float fresnel(float amount, vec3 normal, vec3 view) {
 // The tutorial linearises depth with hand-set near/far planes. This camera's
 // planes span 0.5 m to over 1000 km, so use the exact inverse projection.
 float linear_depth(float raw, vec2 screen_uv, mat4 inv_projection) {
+	// OpenGL (Compatibility) depth is in [-1, 1]; Vulkan (Forward+/Mobile)
+	// already stores NDC depth in [0, 1], reversed-Z.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 	vec4 view = inv_projection * vec4(screen_uv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
+#else
+	vec4 view = inv_projection * vec4(screen_uv * 2.0 - 1.0, raw, 1.0);
+#endif
 	return -view.z / view.w;
 }
 
