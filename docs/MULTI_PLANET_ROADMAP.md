@@ -97,9 +97,14 @@ Everything for this step lives in `~/godot-double/`:
   - [x] Linux `template_release` (12 min)
   - [ ] Windows `template_release`, Linux and Windows `template_debug`
 - [x] `tools/run.sh` (so `check.sh`, `hover.sh`, `test-plasma.sh` and `view-assets.sh`) and `tools/perf_lab.py` prefer the double editor in `~/godot-double` after `GODOT_BIN`. README and PERFORMANCE_LAB updated. `play.sh` runs the exported build, so it switches only after exporting with the double templates.
-- [ ] Re-bake Verdant (with the Mun) and Ochre in the double editor: the `custom_build` version string makes the current bakes stale, so terrain is generated at runtime (slow load) until then. One-way: the official build then sees stale bakes in turn.
+- [x] Re-baked bundled Verdant (with the Mun) and Ochre on the double build (`6034f27`, 36 s headless via `PlanetBaker._save_planet`, which skips the automatic bake cleanup so no old bakes were deleted). The player's saved overrides in `user://planets/` had already been re-baked on the double build at 12:23 through the planet editor. Saved and bundled planets have identical terrain settings; only painted clouds differ. The saved Verdant was baked while Codex's unfinished terrain changes were in the working tree, so its launch-area shape may differ from the bundled bake.
+- [ ] Decide whether the player's saved clouds (Verdant repainted; Ochre and Mun gained cloud maps) should become the bundled versions
+- [ ] Delete orphaned bakes (~880 MB, untracked; 3 old ones are tracked from the initial commit) with `tools/cleanup_planet_bakes.gd -- --delete`, after approval
+- Perf comparison at 1280×720, standard preset, idle machine: official (`A-official-2`) vs double with stale bakes (`B-double`). Double adds ~1–2% render CPU and 0.3–0.8 ms frame p95; all scenarios stay well under 16.7 ms. B's lower GPU time and +3 s startup came from runtime-generated terrain; `C-double-rebaked` repeats B with fresh bakes.
+- [x] Like-for-like result, `A-official-2` vs `C-double-rebaked` (same code, fresh bakes, valid, 1280×720): **GPU unchanged (±1%)**, render CPU +1–4%, physics CPU +6–16% (≤0.23 ms), frame mean +0.2–7.2% (about +3.5%), frame p95 +3–8% (0.4–1.0 ms), startup +0.6 s (9.3 s vs 8.7 s). The worst scenario (staging p95 14.1 ms) stays under 16.7 ms. Part of the CPU cost may be the missing LTO (`lto=none`) rather than double precision; official builds use LTO. Optional: test `lto=full` for shipping templates.
+- Game settings (2026-10-09): removed the 120 FPS cap and enabled VSync (Godot default). The perf lab and benchmarks disable VSync themselves.
 - [ ] Point `export_presets.cfg` at the double templates and export
-- [ ] Re-record the performance lab baseline on the double build
+- [x] Performance lab baseline on the double build: `C-double-rebaked` is the first valid run with the double engine and current fixtures, so it is the saved baseline for this configuration
 
 ## 2. Per-body definitions
 
