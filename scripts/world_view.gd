@@ -2180,6 +2180,9 @@ func _update_aero_glow(state: Dictionary, delta: float) -> void:
 		material.set_shader_parameter("airspeed", flow.length())
 		material.set_shader_parameter("hull_origin", _rocket.global_position)
 	_update_heat_trail(direction, flow.length(), intensity * flow_strength, delta)
+	if is_instance_valid(_heat_trail):
+		for material in [_heat_halo_material, _heat_outer_material]:
+			_heat_trail.share_hull(material, _rocket)
 
 
 

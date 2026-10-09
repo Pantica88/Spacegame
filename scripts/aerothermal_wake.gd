@@ -11,6 +11,7 @@ var _hull_key: Array[int] = []
 var flow_direction := Vector3.ZERO
 var _profile_ready := false
 var _material: ShaderMaterial
+var _profile_texture: ImageTexture
 var flow_phase := 0.0
 var path_count := 0
 var profile_build_count := 0
@@ -39,6 +40,17 @@ func update_flow(hull: Array[MeshInstance3D], rocket: Node3D, direction: Vector3
 	_material.set_shader_parameter("flow_phase", flow_phase)
 	_material.set_shader_parameter("strength", strength)
 	_material.set_shader_parameter("airspeed", speed)
+
+## Gives the heat halo (aerothermal_halo.gdshader) the same hull envelope, so
+## its shells extrude smoothly instead of along split hard-edge normals.
+func share_hull(material: ShaderMaterial, rocket: Node3D) -> void:
+	var available := _profile_ready and _profile_texture != null
+	material.set_shader_parameter("hull_profile_ready", available)
+	if not available: return
+	material.set_shader_parameter("hull_profile", _profile_texture)
+	material.set_shader_parameter("hull_bottom", _bottom)
+	material.set_shader_parameter("hull_top", _top)
+	material.set_shader_parameter("hull_to_local", Projection(rocket.global_transform.affine_inverse()))
 
 func prepare_hull(hull: Array[MeshInstance3D], rocket: Node3D) -> void:
 	var key: Array[int] = []
@@ -118,7 +130,8 @@ func _distance(point: Vector3) -> float:
 func _build_seed_mesh() -> void:
 	profile_build_count += 1
 	var image := Image.create_from_data(ANGLE_SLICES, HEIGHT_SLICES, false, Image.FORMAT_RF, _radii.to_byte_array())
-	_material.set_shader_parameter("hull_profile", ImageTexture.create_from_image(image))
+	_profile_texture = ImageTexture.create_from_image(image)
+	_material.set_shader_parameter("hull_profile", _profile_texture)
 	_material.set_shader_parameter("hull_bottom", _bottom)
 	_material.set_shader_parameter("hull_top", _top)
 	# Emit indexed strips directly; SurfaceTool.index hashes every triangle corner.
