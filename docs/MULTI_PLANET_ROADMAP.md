@@ -21,6 +21,7 @@ Order: 1 → passing suite → 2 → 3, before visiting other planets. Designing
 - [ ] **6. Persistent vessels and on-rails orbits** — not started (added for the game vision)
 - [ ] **7. Rendezvous and docking** — later
 - [x] **Mun size decided (2026-10-09):** radius 100 km (about 1° from Verdant, twice the real Moon's apparent size), surface gravity kept at 1.62 m/s², relief scaled to about 3 km. Implement after the Forward+ port merges, with moonlight (see below).
+- [x] **Sun size decided (2026-10-09):** 63,000 km radius (about 0.53° from Verdant); approved by the owner in the hover preview. The sky glow may need re-balancing around the now-visible disk after the Forward+ port.
 - [ ] **Moonlight by phase** — after the Forward+ port: verify the Mun shows correct phases, then add a dim, cool directional light from the Mun on Verdant's night side, scaled by the Mun's illuminated fraction (full → strongest, new → none), off when the Mun is below the horizon or eclipsed by Verdant. Start at 5–15% of sunlight and tune by eye with the owner.
 
 ## Starting point (2026-10-09)

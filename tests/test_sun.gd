@@ -8,7 +8,8 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	assert(Sun.RADIUS / Flight.PLANET_RADIUS == 1.5)
+	# The sun spans about 0.53° from Verdant, like our Sun from Earth.
+	assert(absf(rad_to_deg(2.0 * atan(Sun.RADIUS / Sun.DISTANCE)) - 0.53) < 0.01, "Sun spans about 0.53 degrees from the home planet")
 	assert(is_equal_approx(Sun.segment_hit(Sun.POSITION + Vector3.LEFT * Sun.RADIUS * 2.0, Sun.POSITION + Vector3.RIGHT * Sun.RADIUS * 2.0), 0.25))
 	assert(Sun.segment_hit(Vector3.ZERO, Vector3.UP * 1000.0) == -1.0)
 	var flight := Flight.new()

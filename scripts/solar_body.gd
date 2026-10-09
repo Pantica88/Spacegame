@@ -1,8 +1,10 @@
 extends RefCounted
 ## Solar dimensions in metres, in the flight simulation frame.
 const Physics = preload("res://scripts/physics_math.gd")
-# The 900 km sun is 1.5 times the current 600 km home planet's radius.
-const RADIUS := 900000.0
+# 63,000 km: from Verdant the sun spans about 0.53°, like our Sun from Earth.
+# The visible sun keeps this true angular size (world_view.gd scales it toward
+# the camera), so this radius sets the disk size on screen.
+const RADIUS := 63000000.0
 const DISTANCE := 13599840256.0
 ## Direction from the home planet's centre to the sun.
 const DIRECTION := Vector3(-0.4750648667, 0.443393875, 0.7601037833)

@@ -15,7 +15,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 | 3 | Renderer: moving from Compatibility to Forward+ | **Decided, in progress** | Branch `renderer-forward-plus` |
 | 4 | Simulation in GDScript, custom flight model | Conditional | Requires step 6 (on-rails, level of detail) |
 | 5 | No Godot physics engine; all collision custom | OK | Note for docking and combat |
-| 6 | Solar system: fixed sun, no heliocentric orbits | **Gap** | Fold into step 3 |
+| 6 | Solar system: fixed sun, no heliocentric orbits (sun size decided) | **Gap** | Fold into step 3 |
 | 7 | Planet scale: Verdant 600 km | OK | — |
 | 8 | Time: one float (64-bit) simulation clock | OK | Make it universal in step 6 |
 | 9 | Saves: versioned, but a version change discards the save | **Gap** | Before any persistent world (step 6) |
@@ -79,7 +79,9 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 
 **Fits the vision:** no. Flying to another planet needs every planet on a real orbit around the sun, a heliocentric frame between spheres of influence, and transfer windows that come from real orbital positions.
 
-The sun's physical radius is 900 km (`SolarBody.RADIUS`), 1.5 times Verdant's. From Verdant that is about 0.008° across, against 0.53° for the real Sun; the game draws a separately scaled visual sun. The simulation does not yet define a mass for the sun; heliocentric orbits will need one, so decide the sun's radius and mass together with the system scale.
+**Sun size decided (2026-10-09):** physical radius 63,000 km, so the sun spans about 0.53° from Verdant like our Sun from Earth. The owner tried it in the hover preview and approved it. The visible sun keeps the physical sun's true angular size, so before this change the disk was about 0.2 px and only the sky shader's glow was visible; now a disk about 13 px wide shows inside the glow. Previously the physical radius was 900 km (`SolarBody.RADIUS`), 1.5 times Verdant's. From Verdant that is about 0.008° across, against 0.53° for the real Sun; the game draws a separately scaled visual sun. The simulation does not yet define a mass for the sun; heliocentric orbits will need one, so decide the sun's radius and mass together with the system scale.
+
+**Proposed for step 3 (confirm then):** keep the current sun distance (13,599,840,256 m) as the system's 1 AU, and choose the sun's mass so Verdant's year equals its `orbit_period_days`.
 
 **Decision:** extend step 3 to include heliocentric orbits for all planets (Keplerian rails around the sun), with Verdant moving too. Also fix the system scale: what an AU is in metres, and whether `orbit_distance_au` becomes a real semi-major axis.
 
