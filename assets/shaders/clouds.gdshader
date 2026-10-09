@@ -1,6 +1,7 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, depth_test_disabled, shadows_disabled, fog_disabled;
 #include "res://assets/shaders/clouds_volume.gdshaderinc"
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform sampler2D scene_depth : hint_depth_texture, filter_nearest, repeat_disable;
 // Reduced-resolution volume: encoded color in RGB, unmultiplied, opacity in A.
@@ -128,6 +129,6 @@ void fragment() {
 	}
 	vec4 result = blend ? mix(shaded[1], shaded[0], open) : shaded[0];
 	if (result.a < 0.005) { discard; }
-	ALBEDO = result.rgb;
+	ALBEDO = material_output(result.rgb);
 	ALPHA = result.a;
 }
