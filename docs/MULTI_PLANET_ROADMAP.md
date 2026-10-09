@@ -6,7 +6,9 @@ Goal: many planets and moons that the player can fly to, orbit and land on. This
 
 ## Resume here
 
-Update this checklist as work lands. A new session should read this section first.
+Update this checklist as work lands. A new session should read this section first, then [FOUNDATION_REVIEW.md](FOUNDATION_REVIEW.md), which lists every foundational decision and which ones are still open.
+
+- [ ] **Before step 2:** decide the renderer (run the renderer experiment), confirm heliocentric orbits are in step 3 and fix the system scale, and decide the Mun size. See FOUNDATION_REVIEW.md, "Decisions to make before step 2".
 
 - [x] **1. Double-precision Godot build** — done 2026-10-09 (see [step 1 progress](#step-1-progress)). Open follow-ups there: saved clouds vs bundled, orphan bake cleanup, optional LTO, upstream bug report.
 - [ ] **Prerequisite for 2 and 3:** the full `tools/check.sh` suite passes. Codex started fixing the 19 baseline failures on 2026-10-09 and stopped at its usage limit. Its unverified partial work is on branch `codex/baseline-fixes-wip` (`2eca4f0`): 19 test files, 7 scripts, the `check.sh` hang watchdog, and new `tests/flight_fixture.gd` / `tests/terrain_fixture.gd`. Review it before merging; check that tests were not loosened. Steps 2 and 3 refactor `flight_model.gd`, so they need the suite as a safety net and must not run in parallel with that fix.
@@ -142,6 +144,7 @@ Use patched conics: a vessel orbits the body whose sphere of influence contains 
 
 **Why:** the game vision (see [How the game vision shapes this plan](#how-the-game-vision-shapes-this-plan)) needs many vessels at different bodies at once: satellites left in orbit, stations, manufactured ships and AI faction fleets. Per-vessel frames keep each of them precise. The same design would also allow multiplayer later, but multiplayer is not planned; the vision is single-player with AI factions. Doing this before more systems assume one origin is far cheaper than retrofitting it.
 
+- Every planet moves on a real Keplerian orbit around the sun, Verdant included, with a heliocentric frame between spheres of influence. Today the sun is fixed and planet orbits exist only as an illustration in the orbital map (FOUNDATION_REVIEW.md, entry 6).
 - The vessel feels the current body's gravity, including moons.
 - The orbital map predicts encounters and transitions. It currently stops with "encounter prediction is not available."
 - Time warp keeps craft on rails within a sphere of influence.
