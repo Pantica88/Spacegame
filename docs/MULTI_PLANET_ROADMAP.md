@@ -9,7 +9,7 @@ Goal: many planets and moons that the player can fly to, orbit and land on. This
 Update this checklist as work lands. A new session should read this section first.
 
 - [ ] **1. Double-precision Godot build** — in progress (see [step 1 progress](#step-1-progress))
-- [ ] **Prerequisite for 2 and 3:** the full `tools/check.sh` suite passes. Codex started fixing the 19 baseline failures on 2026-10-09 and stopped at its usage limit. Its unverified partial work is on branch `codex/baseline-fixes-wip` (`2eca4f0`): 19 test files, 7 scripts, the `check.sh` hang watchdog, and new `tests/flight_fixture.gd` / `tests/terrain_fixture.gd`. Review it before merging; check that tests were not loosened. Steps 2 and 3 refactor `flight_model.gd`, so they need the suite as a safety net and must not run in parallel with that fix.
+- [x] **Prerequisite for 2 and 3:** the full `tools/check.sh` suite passes. **Baseline test failures (2026-10-09):** all 83 checks pass on the default double build with fresh XDG storage per check; all 19 baseline failures are resolved. Fixed assertion hangs, tether sleep timing, hillside rolling resistance and installed fin placement. Updated outdated fixtures for the equatorial pad, larger planet/atmosphere and current staging; restored geometric assertions and removed unnecessary single-precision workarounds. [Test-by-test audit and root causes](BASELINE_TEST_FAILURES.md). No remaining failures. Terrain generation and `BAKE_VERSION` (9) are unchanged; no bundled bakes were rewritten or deleted.
 - [ ] **2. Per-body definitions and body registry instead of hardcoded radius** — not started
 - [ ] **3. Spheres of influence and per-vessel reference frames (multiplayer-ready)** — not started
 
