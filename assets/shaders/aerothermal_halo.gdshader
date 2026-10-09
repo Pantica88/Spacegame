@@ -34,7 +34,7 @@ void vertex() {
 }
 
 void fragment() {
-	float rim = pow(1.0 - abs(dot(normalize(NORMAL), normalize(VIEW))), 1.6);
+	float rim = pow(max(1.0 - abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0), 1.6);
 	float windward = max(dot(normalize(hull_normal), air_direction), 0.0);
 	float along = dot(hull_position, air_direction);
 	vec3 transverse = hull_position - air_direction * along;

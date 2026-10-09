@@ -9,7 +9,7 @@ void fragment() {
 	float t = UV.y;
 	float angle = UV.x * 6.28318530718;
 	float clock = TIME * 3.5 + phase + COLOR.r * 4.7;
-	float tail = pow(1.0 - t, 1.7) * (1.0 - smoothstep(0.8, 1.0, t));
+	float tail = pow(max(1.0 - t, 0.0), 1.7) * (1.0 - smoothstep(0.8, 1.0, t));
 	// Integer angular frequencies keep the circumference seamless.
 	float strand = pow(max(sin(angle * 37.0 + sin(t * 9.0 - clock) * 1.6 + phase), 0.0), 9.0);
 	float fine = pow(max(sin(angle * 67.0 - t * 5.0 + sin(clock + t * 13.0)), 0.0), 14.0);

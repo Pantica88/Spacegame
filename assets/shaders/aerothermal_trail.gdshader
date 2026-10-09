@@ -94,7 +94,7 @@ void fragment() {
 	float packets = smoothstep(0.40, 0.86, turbulence);
 	float edge = exp(-UV.x * UV.x * 4.5) * (1.0 - smoothstep(0.7, 1.0, abs(UV.x)));
 	float root_fire = air_contact * (1.0 - smoothstep(0.05, 0.30, t));
-	float fade = mix(air_contact * 0.14, 1.0, smoothstep(0.0, 0.035, t)) * pow(1.0 - t, 1.4) * (1.0 - smoothstep(0.65, 1.0, t));
+	float fade = mix(air_contact * 0.14, 1.0, smoothstep(0.0, 0.035, t)) * pow(max(1.0 - t, 0.0), 1.4) * (1.0 - smoothstep(0.65, 1.0, t));
 	float core = pow(max(0.0, 1.0 - abs(UV.x)), 7.0) * packets;
 	vec3 color = mix(vec3(1.0, 0.40, 0.07), vec3(1.0, 0.055, 0.004), smoothstep(0.0, 0.55, t));
 	color = mix(color, vec3(1.0, 0.85, 0.48), core * (1.0 - t) * 0.55);
