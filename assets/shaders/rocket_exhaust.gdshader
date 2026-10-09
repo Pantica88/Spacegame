@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform float phase = 0.0;
 uniform float thrust_intensity : hint_range(0.0, 1.0) = 1.0;
@@ -26,4 +27,7 @@ void fragment() {
 	glow += core_color * core * 2.2;
 	ALBEDO = glow;
 	ALPHA = COLOR.a * thrust_intensity * emergence * (1.0 - smoothstep(0.72, 1.0, t));
+	vec4 added = additive_output(ALBEDO, ALPHA);
+	ALBEDO = added.rgb;
+	ALPHA = added.a;
 }

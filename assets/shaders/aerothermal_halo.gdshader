@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_back, world_vertex_coords;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform float intensity : hint_range(0.0, 1.0) = 0.0;
 uniform float flow_strength : hint_range(0.0, 1.0) = 0.0;
@@ -50,4 +51,7 @@ void fragment() {
 	fire = mix(fire, vec3(1.0, 0.9, 0.65), bow * filaments);
 	ALBEDO = fire * (1.8 + brightness);
 	ALPHA = intensity * flow_strength * brightness * mix(0.7, 0.35, layer) * (0.45 + rim * 0.55);
+	vec4 added = additive_output(ALBEDO, ALPHA);
+	ALBEDO = added.rgb;
+	ALPHA = added.a;
 }

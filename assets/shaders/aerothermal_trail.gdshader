@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, skip_vertex_transform;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform float strength : hint_range(0.0, 1.0) = 0.0;
 uniform float airspeed = 0.0;
@@ -100,4 +101,7 @@ void fragment() {
 	color = mix(color, vec3(1.0, 0.85, 0.48), core * (1.0 - t) * 0.55);
 	ALBEDO = color * (1.5 + core * 2.0);
 	ALPHA = exposure * strength * fade * edge * (0.08 + packets * 0.72 + root_fire * (0.20 + packets * 0.70));
+	vec4 added = additive_output(ALBEDO, ALPHA);
+	ALBEDO = added.rgb;
+	ALPHA = added.a;
 }

@@ -81,3 +81,19 @@ vec3 displayed_screen_color(vec3 color) {
 	return exact_linear_to_srgb(min(filmic_tonemap(color, 1.0), vec3(1.0)));
 #endif
 }
+
+// Additive (blend_add) layers. Compatibility tonemaps each layer on its own,
+// so one layer can add at most display white per channel, however hot its
+// colour. Forward+ adds linear light: decoded HDR colours (the polynomial
+// above grows like a cubic) then add without limit, overlaps overflow the
+// buffer, and the red channel of fire saturates long before green, turning
+// it pink. Cap each layer at linear 1.0, which Filmic with white 1.0
+// displays as white, and alpha at 1 as the 8-bit target did. Set ALBEDO and
+// ALPHA from the result.
+vec4 additive_output(vec3 albedo, float alpha) {
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	return vec4(albedo, alpha);
+#else
+	return vec4(min(compat_srgb_to_linear(albedo), vec3(1.0)), clamp(alpha, 0.0, 1.0));
+#endif
+}

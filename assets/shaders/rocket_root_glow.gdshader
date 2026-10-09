@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode unshaded, blend_add, cull_disabled, depth_draw_never, fog_disabled;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform float thrust_intensity : hint_range(0.0, 1.0) = 1.0;
 
@@ -14,4 +15,7 @@ void fragment() {
 	ALBEDO = mix(vec3(0.18, 0.65, 1.0), vec3(0.85, 0.97, 1.0), hot_ring)
 		* (0.35 + hot_ring * 1.6) * pulse;
 	ALPHA = aperture * hollow_center * thrust_intensity * 0.65;
+	vec4 added = additive_output(ALBEDO, ALPHA);
+	ALBEDO = added.rgb;
+	ALPHA = added.a;
 }
