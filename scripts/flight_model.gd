@@ -751,14 +751,8 @@ func _integrate(dt: float, control: Vector3) -> void:
 			normal = landing_hit.normal
 			contact_fraction = landing_hit.fraction
 		if not _has_lifted and (_relaunching or float(state["max_altitude"]) < 1.0):
-			var ground_velocity := _body_surface_velocity(landing_body, contact_radial)
-			# A float32 sweep can start on the surface even as the accumulated
-			# sub-centimetre displacement leaves it. Constrain only inward motion;
-			# resetting an outward velocity here pins fueled rockets to the pad.
-			if (velocity - ground_velocity).dot(normal) <= 0.0:
-				position = Vector3(landing_body.center)+contact_radial
-				state.position_remainder = Vector3.ZERO
-				velocity = ground_velocity
+			position = Vector3(landing_body.center)+contact_radial
+			velocity = _body_surface_velocity(landing_body, contact_radial)
 		else:
 			var impact_velocity: Vector3 = previous_velocity.lerp(velocity,contact_fraction)-_body_surface_velocity(landing_body, contact_radial)
 			var impact_speed := impact_velocity.length()

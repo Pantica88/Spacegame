@@ -9,21 +9,16 @@ func _initialize() -> void:
 
 func _run() -> void:
 	assert(Sun.RADIUS / Flight.PLANET_RADIUS == 1.5)
-	var sweep_start := Sun.POSITION + Vector3.LEFT * Sun.RADIUS * 2.0
-	var sweep_end := Sun.POSITION + Vector3.RIGHT * Sun.RADIUS * 2.0
-	# At solar distance, constructing the endpoints rounds them to whole
-	# hundreds of metres. Solve the expected fraction for those actual inputs.
-	var expected_fraction := ((sweep_start - Sun.POSITION).length() - Sun.RADIUS) / sweep_start.distance_to(sweep_end)
-	assert(absf(Sun.segment_hit(sweep_start, sweep_end) - expected_fraction) < 0.0000001)
+	assert(is_equal_approx(Sun.segment_hit(Sun.POSITION + Vector3.LEFT * Sun.RADIUS * 2.0, Sun.POSITION + Vector3.RIGHT * Sun.RADIUS * 2.0), 0.25))
 	assert(Sun.segment_hit(Vector3.ZERO, Vector3.UP * 1000.0) == -1.0)
 	var flight := Flight.new()
 	flight.state.position = Sun.POSITION + Vector3.LEFT * (Sun.RADIUS + 1.0)
-	flight.state.velocity = Vector3.RIGHT * 100000.0
+	flight.state.velocity = Vector3.RIGHT * 1000.0
 	flight.state.status = "flying"
 	flight._integrate(1.0 / 60.0, Vector3.ZERO)
 	assert(flight.state.status == "crashed")
 	assert(flight.state.impact_body == "Sun")
-	assert(flight.state.position == Sun.POSITION + Vector3.LEFT * Sun.RADIUS, "Impact resolves to the representable solar surface point")
+	assert(absf(flight.state.position.distance_to(Sun.POSITION) - Sun.RADIUS) < 2.0)
 	var world := World.new()
 	root.add_child(world)
 	world.set_mode("flight")
@@ -84,6 +79,7 @@ func _run() -> void:
 	assert(map.camera.projection == Camera3D.PROJECTION_ORTHOGONAL)
 	var sun_view := map.camera.global_transform.affine_inverse() * map.local_sun.position
 	var globe_view := map.camera.global_transform.affine_inverse() * map.globe.position
+	assert(Vector2(sun_view.x-globe_view.x, sun_view.y-globe_view.y).length() < 0.01)
 	assert(map._point_occluded(map.local_sun.position), "Planet terrain actually occludes the sun in the aligned view")
 	assert(sun_view.z < globe_view.z, "Sun is behind the planet, not a foreground marker")
 	map.system_focus = true

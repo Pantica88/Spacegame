@@ -2,7 +2,6 @@ extends RefCounted
 ## Seeded spherical terrain with full-detail contact and altitude-scaled rendering.
 const Definition = preload("res://scripts/planet_definition.gd")
 const Bake = preload("res://scripts/planet_bake.gd")
-const Physics = preload("res://scripts/physics_math.gd")
 # Increment when mesh generation, colors, normals or LOD layout changes.
 # Editor, map, moons and near-surface flight share the collision triangles.
 const BAKE_VERSION := 9
@@ -376,12 +375,7 @@ func _refine_surface_hit(hit: Dictionary, origin: Vector3, direction: Vector3) -
 	var denominator := float(normal.x) * direction.x + float(normal.y) * direction.y + float(normal.z) * direction.z
 	if absf(denominator) < 0.000000001: return
 	var distance := (float(normal.x) * (float(a.x) - origin.x) + float(normal.y) * (float(a.y) - origin.y) + float(normal.z) * (float(a.z) - origin.z)) / denominator
-	var x := float(origin.x) + float(direction.x) * distance
-	var y := float(origin.y) + float(direction.y) * distance
-	var z := float(origin.z) + float(direction.z) * distance
-	hit.position = Vector3(x, y, z)
-	hit.radius = sqrt(x * x + y * y + z * z)
-	hit.distance = distance
+	hit.position = Vector3(float(origin.x) + float(direction.x) * distance, float(origin.y) + float(direction.y) * distance, float(origin.z) + float(direction.z) * distance)
 	hit.normal = normal
 
 func contact(radial: Vector3, time: float = 0.0) -> Dictionary:
@@ -392,49 +386,32 @@ func contact(radial: Vector3, time: float = 0.0) -> Dictionary:
 	var origin := direction * (float(definition.radius) + float(definition.relief) * 2.0 + 100.0)
 	var hit := collision.intersect_ray(origin, -direction)
 	if hit.is_empty(): return {"radius":float(definition.radius),"normal":rotation*direction}
-	_refine_surface_hit(hit, Vector3.ZERO, direction)
+	_refine_surface_hit(hit, origin, -direction)
 	var point: Vector3 = hit.position
 	var normal: Vector3 = hit.normal
 	if normal.dot(direction) < 0.0: normal = -normal
-	return {"radius":hit.radius,"normal":rotation*normal,"position":rotation*point}
+	return {"radius":point.length(),"normal":rotation*normal,"position":rotation*point}
 
 func clearance(radial: Vector3, time: float = 0.0) -> float:
-	return sqrt(Physics.dot_double(radial, radial))-float(contact(radial,time).radius)
+	return radial.length()-float(contact(radial,time).radius)
 
 func segment_hit(start: Vector3, finish: Vector3, start_time: float, end_time: float) -> Dictionary:
+	if minf(start.length(),finish.length()) > float(definition.radius)+float(definition.relief)*2.0:
+		# A chord can still cross the globe even when both endpoints are above it.
+		var segment := finish-start
+		var closest := start+segment*clampf(-start.dot(segment)/maxf(segment.length_squared(),0.000001),0.0,1.0)
+		if closest.length() > float(definition.radius)+float(definition.relief)*2.0: return {}
+	# Distant debris must not build every moon's collision mesh on separation.
+	build()
 	var rotation := rotation_at(end_time)
 	# Transform both endpoints at their respective times: include ground rotation.
 	var local_start := rotation_at(start_time).transposed()*start
 	var local_end := rotation.transposed()*finish
-	var enter := 0.0
-	var leave := 1.0
-	var bound := float(definition.radius) + float(definition.relief) * 2.0 + 100.0
-	if maxf(local_start.length(), local_end.length()) > bound:
-		# Clip distant map/solar rays to the body's vicinity before handing them
-		# to TriangleMesh. Planet-sized triangles disappear in float32 arithmetic
-		# when a segment spans billions of metres. Scalars keep the clipping stable.
-		var travel := local_end - local_start
-		var length_squared := Physics.dot_double(travel, travel)
-		if length_squared < 0.000001: return {}
-		var middle := -Physics.dot_double(local_start, travel) / length_squared
-		var closest := Vector3.ZERO
-		for axis in range(3): closest[axis] = float(local_start[axis]) + float(travel[axis]) * middle
-		var distance_squared := Physics.dot_double(closest, closest)
-		if distance_squared > bound * bound: return {}
-		var half_span := sqrt((bound * bound - distance_squared) / length_squared)
-		enter = maxf(0.0, middle - half_span)
-		leave = minf(1.0, middle + half_span)
-		if enter > leave: return {}
-		for axis in range(3):
-			local_end[axis] = float(local_start[axis]) + float(travel[axis]) * leave
-			local_start[axis] = float(local_start[axis]) + float(travel[axis]) * enter
-	# Distant debris must not build every moon's collision mesh on separation.
-	build()
 	var hit := collision.intersect_segment(local_start,local_end)
 	if hit.is_empty(): return {}
 	_refine_surface_hit(hit, local_start, local_end - local_start)
 	var local_point: Vector3 = hit.position
-	var fraction := lerpf(enter, leave, clampf(float(hit.distance), 0.0, 1.0))
+	var fraction := clampf(local_start.distance_to(local_point)/maxf(local_start.distance_to(local_end),0.000001),0.0,1.0)
 	var normal: Vector3 = hit.normal
 	if normal.dot(local_point) < 0.0: normal = -normal
 	return {"position":rotation*local_point,"normal":rotation*normal,"fraction":fraction}
