@@ -159,7 +159,13 @@ void fragment() {
 		float above_sea = length(sphere_pos)-BODY_RADIUS*1000.0;
 		// Rebuild the view position from this pixel's own depth: VERTEX loses
 		// metres to planet-sized coordinates beside the launch-origin path.
+		// OpenGL (Compatibility) depth spans [-1, 1] in NDC; Vulkan stores
+		// NDC depth directly, reversed-Z.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 		vec4 here = INV_PROJECTION_MATRIX*vec4(SCREEN_UV*2.0-1.0,FRAGCOORD.z*2.0-1.0,1.0);
+#else
+		vec4 here = INV_PROJECTION_MATRIX*vec4(SCREEN_UV*2.0-1.0,FRAGCOORD.z,1.0);
+#endif
 		vec3 view_here = here.xyz/here.w;
 		vec3 ray_dir = normalize(view_here);
 		vec3 up_view = normalize(mat3(VIEW_MATRIX)*normalize(world_surface_direction));
@@ -173,7 +179,11 @@ void fragment() {
 		float far_drop = view_distance*0.01*smoothstep(4000.0,6000.0,view_distance);
 		vec3 bed_view = view_here+ray_dir*(max(above_sea+mix(seabed_shallow_m+view_distance*0.0002,seabed_depth_m,shelf),0.0)+far_drop)/descent;
 		vec4 bed_clip = PROJECTION_MATRIX*vec4(bed_view,1.0);
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 		DEPTH = bed_clip.z/bed_clip.w*0.5+0.5;
+#else
+		DEPTH = bed_clip.z/bed_clip.w;
+#endif
 		water_mask = 1.0-bed_visible;
 	}
 	// Land and ocean patterns become unstable once they are smaller than a
