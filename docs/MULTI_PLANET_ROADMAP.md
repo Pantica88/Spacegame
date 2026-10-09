@@ -9,7 +9,7 @@ Goal: many planets and moons that the player can fly to, orbit and land on. This
 Update this checklist as work lands. A new session should read this section first.
 
 - [ ] **1. Double-precision Godot build** — in progress (see [step 1 progress](#step-1-progress))
-- [ ] **Prerequisite for 2 and 3:** the full `tools/check.sh` suite passes (Codex is fixing the 19 baseline failures, 2026-10-09). Steps 2 and 3 refactor `flight_model.gd`, so they need the suite as a safety net and must not run in parallel with that fix.
+- [ ] **Prerequisite for 2 and 3:** the full `tools/check.sh` suite passes. Codex started fixing the 19 baseline failures on 2026-10-09 and stopped at its usage limit. Its unverified partial work is on branch `codex/baseline-fixes-wip` (`2eca4f0`): 19 test files, 7 scripts, the `check.sh` hang watchdog, and new `tests/flight_fixture.gd` / `tests/terrain_fixture.gd`. Review it before merging; check that tests were not loosened. Steps 2 and 3 refactor `flight_model.gd`, so they need the suite as a safety net and must not run in parallel with that fix.
 - [ ] **2. Per-body definitions and body registry instead of hardcoded radius** — not started
 - [ ] **3. Spheres of influence and per-vessel reference frames (multiplayer-ready)** — not started
 
