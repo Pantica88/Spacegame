@@ -1,6 +1,6 @@
 [gd_resource type="Resource" load_steps=3 format=3]
 
-[ext_resource type="Resource" path="res://assets/planets/moons/baked/verdant-moon-0-2245f6bef92bde7731efdf5d6dbfd276a9ef3f69e2e4f14b71395a97ce426bd2.res" id="1_s3dft"]
+[ext_resource type="Resource" path="res://assets/planets/moons/baked/verdant-moon-0-5d1093f16554cb881a5804f88f0bfdc8e3cbbdbf3a2e9ee4cb8347f732e606bf.res" id="1_s3dft"]
 [ext_resource type="Script" path="res://scripts/planet_definition.gd" id="2_o0xmn"]
 
 [resource]

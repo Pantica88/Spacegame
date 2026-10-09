@@ -1,7 +1,7 @@
 [gd_resource type="Resource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/planet_definition.gd" id="1"]
-[ext_resource type="Resource" path="res://assets/planets/baked/ochre-0faae171b26ba2eca9f00900fc50f70d36dc2407f07fde7765590c97c15baa05.res" id="1_jat63"]
+[ext_resource type="Resource" path="res://assets/planets/baked/ochre-63d95fd124b9d6b1530e195c8aec6911c8b766850efcfc1178815cb506b808ec.res" id="1_jat63"]
 
 [resource]
 script = ExtResource("1")
