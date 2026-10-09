@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/explorer_1_preview.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/separator_1/separator_1.glb" id="2"]
+
+[node name="Separator1Preview" type="Node3D"]
+script = ExtResource("1")
+asset = ExtResource("2")
+target = Vector3(0, 0, 0)
+caption = "SEPARATOR–1  /  BOOSTER SEPARATOR\nHazard-marked rail · Dual release housings"
+screenshot_path = "res://assets/models/separator_1/preview.png"
+initial_pitch = 0.18
+initial_distance = 3.0

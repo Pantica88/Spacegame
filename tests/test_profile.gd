@@ -19,6 +19,7 @@ func _init() -> void:
 	_test_documents()
 	_test_fields()
 	_test_limits()
+	_test_assembly_height()
 	_test_write_failures()
 	for suffix: String in ["", ".tmp"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(_path + suffix))
@@ -88,7 +89,7 @@ func _test_fields() -> void:
 	_write(JSON.stringify({"version": 1, "design": {"name": "   ", "tanks": 999, "engine": "missing", "boosters": false, "fins": false}, "completed": ["hop", "hop", 12, {}, null, "unknown", "sky", "orbit", "sky"], "flights": 5, "recoveries": 100, "sound": false}))
 	var sanitized = Profile.new(_path)
 	_check(sanitized.data["design"]["name"] == "Pioneer 01", "Blank names use default")
-	_check(sanitized.data["design"]["tanks"] == 4 and sanitized.data["design"]["engine"] == "sparrow", "Parts stay inside supported catalog")
+	_check(sanitized.data["design"]["tanks"] == Parts.Craft.MAX_TANKS and sanitized.data["design"]["engine"] == "sparrow", "Parts stay inside supported catalog")
 	_check(sanitized.data["completed"] == ["hop", "sky", "orbit"], "Completion IDs are known, unique and ordered")
 	_check(sanitized.data["recoveries"] == 5, "Recoveries cannot exceed flights")
 	_check(sanitized.data["sound"] == false and sanitized.data["design"]["fins"] == false, "Valid false settings remain false")
@@ -132,3 +133,23 @@ func _test_write_failures() -> void:
 	profile = Profile.new(_path)
 	profile.last_error = "Previous error"
 	_check(profile.save() and profile.last_error.is_empty(), "Successful retry clears old error")
+
+func _test_assembly_height() -> void:
+	var profile = Profile.new(_path)
+	var assembly: Dictionary = Parts.Craft.migrate(Parts.default_design())
+	var expected_parts: Array = Parts.Craft.load_craft({"assembly": assembly}).parts
+	for height: Variant in [NAN, INF, -INF, "bad", null, [], {}]:
+		assembly["root_height"] = height
+		profile.data["design"] = {"assembly": assembly}
+		_check(profile.save(), "Invalid assembly height can be repaired and saved")
+		var reloaded = Profile.new(_path)
+		_check(reloaded.last_error.is_empty(), "Repaired assembly reloads")
+		_check(reloaded.data.design.assembly.root_height == 9.0, "Invalid height uses safe default")
+		_check(reloaded.data.design.assembly.parts == expected_parts, "Height repair preserves the assembled craft")
+		_check(FileAccess.get_file_as_bytes(_path).size() <= Profile.MAX_SAVE_BYTES, "Saved document fits loader limit")
+	for height: float in [-10.0, 12.5, 100.0]:
+		assembly["root_height"] = height
+		profile.data["design"] = {"assembly": assembly}
+		_check(profile.save(), "Finite assembly height saves")
+		var reloaded = Profile.new(_path)
+		_check(reloaded.data.design.assembly.root_height == clampf(height, 3.5, Parts.Craft.MAX_ROOT_HEIGHT), "Finite height remains within workshop bounds")

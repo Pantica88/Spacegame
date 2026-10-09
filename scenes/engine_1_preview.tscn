@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/explorer_1_preview.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/engine_1/engine_1.glb" id="2"]
+
+[node name="Engine1Preview" type="Node3D"]
+script = ExtResource("1")
+asset = ExtResource("2")
+target = Vector3(0, 1.35, 0)
+caption = "ENGINE–1  /  MAIN ENGINE\nGimballed engine · Exposed feed system"
+screenshot_path = "res://assets/models/engine_1/preview.png"
+initial_pitch = 0.18
+initial_distance = 5.5

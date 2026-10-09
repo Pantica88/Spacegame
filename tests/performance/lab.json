@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "resolution": [1280, 720],
+  "renderer": "gl_compatibility",
+  "seed": 17171,
+  "target_fps": 60,
+  "presets": {
+    "quick": {"warmup_seconds": 1.0, "sample_seconds": 3.0, "repeats": 1},
+    "standard": {"warmup_seconds": 2.0, "sample_seconds": 8.0, "repeats": 3},
+    "soak": {"warmup_seconds": 3.0, "sample_seconds": 60.0, "repeats": 3}
+  },
+  "scenarios": {
+    "launch": "Ignition and ascent of a nine-engine Titan craft, full UI and flight loop",
+    "dense_clouds": "Flight through a fully occupied mixed-family authored cloud map",
+    "staging": "Eight live radial boosters separate one simulation second into capture",
+    "orbit": "100 km circular-orbit checkpoint with full flight rendering and UI",
+    "map": "Live orbital flight with the map open and scripted camera rotation",
+    "reentry": "Hot 12 km descent checkpoint with aerodynamic heating and wake",
+    "parachute": "Deployment and fabric inflation during descent",
+    "landing": "Ground contact and parachute settling, including the existing cloth solver"
+  }
+}

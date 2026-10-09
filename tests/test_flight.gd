@@ -11,6 +11,7 @@ var _failures: Array[String] = []
 
 
 func _init() -> void:
+	_test_aerothermal()
 	_test_designs()
 	_test_launch_and_fuel()
 	_test_staging()
@@ -54,7 +55,7 @@ func _test_designs() -> void:
 				model.step(2.0, {"throttle": 1.0})
 				_check(float(model.state["altitude"]) > 1.0, "%s / %d tanks / boosters %s actually leaves terrain" % [engine, tanks, boosters])
 	var normalized: Dictionary = Parts.normalize_design({"engine": "missing", "tanks": 100, "name": "  "})
-	_check(normalized["engine"] == "sparrow" and normalized["tanks"] == 4, "Invalid designs safely normalize")
+	_check(normalized["engine"] == "sparrow" and normalized["tanks"] == Parts.Craft.MAX_TANKS, "Invalid designs safely normalize")
 	_check(not str(normalized["name"]).is_empty(), "Design always has a display name")
 	_check(Parts.default_design() == Parts.default_design(), "Default designs are deterministic")
 	var independent: Dictionary = Parts.default_design()
@@ -67,7 +68,11 @@ func _test_launch_and_fuel() -> void:
 	var initial_fuel: float = float(model.state["fuel"])
 	model.step(1.0, {"throttle": 1.0})
 	_check(float(model.state["fuel"]) == initial_fuel and model.state["status"] == "ready", "Ready craft cannot burn fuel")
+	model.advance_prelaunch_time(120.0)
+	_check(Basis(model.state["orientation"]).is_equal_approx(model.terrain.rotation_at(120.0)), "Ready craft follows the rotating launch pad")
+	var launch_attitude: Basis = model.state["orientation"]
 	model.ignite()
+	_check(Basis(model.state["orientation"]).is_equal_approx(launch_attitude), "Ignition preserves the prelaunch surface attitude")
 	model.step(1.0, {"throttle": 0.0})
 	_check(float(model.state["altitude"]) < 0.1 and model.state["status"] == "flying", "Zero throttle remains supported on launch pad")
 	model.step(1.0, {"throttle": 1.0})
@@ -143,9 +148,11 @@ func _test_impact() -> void:
 	_check(model.state["status"] == "crashed", "High-speed terrain collision crashes the vessel")
 	_check(float(model.state["impact_speed"]) > Flight.SAFE_LANDING_SPEED, "Crash records pre-impact speed")
 	_check(float(model.state["altitude"]) < 0.1, "Collision is resolved at terrain surface")
-	var stopped_position: Vector3 = model.state["position"]
+	var body_position: Vector3 = model.state.landing_body_position
+	var touchdown_time: float = model.state.time
 	model.step(1.0, {"throttle": 1.0})
-	_check(model.state["position"] == stopped_position, "Crashed craft remain stopped")
+	var expected_position: Vector3 = Flight.PLANET_CENTER + model.terrain.rotation_at(model.simulation_time()) * body_position
+	_check(Vector3(model.state.position).distance_to(expected_position) < .01 and model.state.time == touchdown_time and not model.state.engine_on, "Crashed craft stays on the rotating surface without restarting the flight")
 	# Verify that terrain collision uses radius, including far from the original pad.
 	model.reset(Parts.default_design())
 	model.ignite()
@@ -167,8 +174,26 @@ func _test_parachute_recovery() -> void:
 	var model = Flight.new()
 	model.ignite()
 	model.state["position"] = Vector3(0.0, 1000.0, 0.0)
+	model.state["velocity"] = Vector3(0.0, -100.0, 0.0)
 	model.deploy_chute()
-	_check(not bool(model.state["chute_deployed"]), "Parachute requires capsule separation")
+	_check(bool(model.state["chute_deployed"]), "Parachute deploys before capsule separation")
+	for index: int in range(300):
+		model.step(1.0, {"throttle": 0.0})
+		if model.state["status"] != "flying":
+			break
+	var landed_fuel: float = float(model.state["fuel"])
+	model.step(1.0 / 60.0, {"throttle": 1.0})
+	_check(model.state["status"] == "flying" and model.state["engine_on"] and float(model.state["fuel"]) < landed_fuel, "Intact fueled engine can relaunch after soft parachute touchdown")
+	_check(not model.state.chute_deployed and model.state.chute_cut and is_zero_approx(model._chute_opening), "Engine restart cuts the spent canopy and removes parachute drag")
+	model.state.position = Vector3(0, 1000, 0)
+	model.state.velocity = Vector3(0, -20, 0)
+	model.deploy_chute()
+	_check(not model.state.chute_deployed and not model.telemetry().chute_safe, "Cut parachute cannot be deployed again")
+	model.reset(Parts.default_design())
+	_check(not model.state.chute_cut, "New flight restores an unused parachute")
+	model.ignite()
+	# Recovery requires cutting the core before releasing it.
+	model.state["throttle"] = 0.0
 	model.stage()
 	model.state["position"] = Vector3(0.0, 8000.0, 0.0)
 	model.deploy_chute()
@@ -190,6 +215,19 @@ func _test_parachute_recovery() -> void:
 	_check(model.state["status"] == "landed", "Parachute recovers capsule safely from descent")
 	_check(float(model.state["impact_speed"]) < 7.0, "Chute has a survivable terminal descent speed")
 	_check(float(model.state["altitude"]) < 0.1, "Recovered capsule rests at surface")
+	# Planet-scale float32 coordinates once turned contact corrections into
+	# hops and rim-to-rim rocking that never settled.
+	var touchdown_offset: Vector3 = model.state.landing_offset
+	var peak_rise := 0.0
+	for index: int in range(150):
+		model.step(1.0 / 60.0, {"throttle": 0.0})
+		peak_rise = maxf(peak_rise, (Vector3(model.state.landing_offset) - touchdown_offset).dot(Vector3(model.state.landing_anchor_normal)))
+	_check(bool(model.state.get("settled", false)), "Soft parachute landing settles within 2.5 s")
+	_check(peak_rise < 0.01, "Landed capsule does not hop")
+	var settled_offset: Vector3 = model.state.landing_offset
+	for index: int in range(60):
+		model.step(1.0 / 60.0, {"throttle": 0.0})
+	_check(Vector3(model.state.angular_velocity).is_zero_approx() and Vector3(model.state.landing_offset) == settled_offset, "Settled capsule stays still on the rotating surface")
 	# End-to-end player mission: build, launch past 1 km, separate, deploy, recover.
 	model.reset(Parts.default_design())
 	model.ignite()
@@ -197,6 +235,8 @@ func _test_parachute_recovery() -> void:
 		model.step(1.0 / 60.0, {"throttle": 1.0})
 		if float(model.state["altitude"]) >= 1200.0:
 			break
+	# Recovery requires cutting the core before releasing it.
+	model.state["throttle"] = 0.0
 	model.stage()
 	for index: int in range(400):
 		if bool(model.telemetry()["chute_safe"]):
@@ -207,6 +247,8 @@ func _test_parachute_recovery() -> void:
 	_check(float(model.state["max_altitude"]) >= 1000.0 and model.state["status"] == "landed", "Playable 1 km launch-and-recover loop succeeds")
 	model.reset(Parts.default_design())
 	model.ignite()
+	# Recovery requires cutting the core before releasing it.
+	model.state["throttle"] = 0.0
 	model.stage()
 	model.state["position"] = Vector3(0.0, 45000.0, 0.0)
 	for index: int in range(600):
@@ -428,3 +470,33 @@ func _test_propulsion_math() -> void:
 			solid = maxf(0.0, solid - solid_burn)
 		_check(absf(integrated_delta_v - stats.delta_v) < 0.1, engine + " staged delta-v agrees with independently integrated impulse")
 		_check(absf(stats.twr - stats.thrust / (stats.wet_mass * Physics.SURFACE_GRAVITY)) < 1e-9, "Launch TWR uses planet gravity rather than Isp's reference gravity")
+
+
+func _test_aerothermal() -> void:
+	var model = Flight.new()
+	model._update_aerothermal(20.0, 1.225, 100.0)
+	_check(model.state.heat_glow == 0.0, "Ordinary atmospheric flight does not ignite")
+	model._update_aerothermal(10.0, 1.225, 1000.0)
+	_check(model.state.heat_glow > 0.9, "Sustained high airspeed ignites the thermal shell")
+	var hot: float = model.state.temperature
+	model._update_aerothermal(5.0, 0.0, 5000.0)
+	_check(model.state.temperature < hot and model.state.heating_rate == 0.0, "Vacuum cools even at high speed")
+	model.reset(Parts.default_design())
+	_check(model.state.heat_glow == 0.0 and model.state.temperature == 288.0, "New flight resets heat")
+	var fine = Flight.new()
+	for i in range(600): fine._update_aerothermal(1.0 / 60.0, 0.6, 800.0)
+	model._update_aerothermal(10.0, 0.6, 800.0)
+	_check(absf(fine.state.temperature - model.state.temperature) < 0.01, "Thermal integration is frame-rate independent")
+
+	for direction in [-1.0, 1.0]:
+		model.reset(Parts.default_design())
+		model.state.status = "flying"
+		model.state.position = Vector3(0, 3000, 0)
+		model.state.velocity = Vector3(0, direction * 1600.0, 0)
+		model.step(0.5, {"throttle": 0.0})
+		_check(model.state.drag_acceleration > 0.0, "Drag acts during ascent and reentry")
+		_check(model.state.temperature > 288.0, "Ascent and reentry both generate aerodynamic heat")
+
+		var radial: Vector3 = model.state.position - Flight.PLANET_CENTER
+		var expected_air_velocity: Vector3 = model.state.velocity - model.terrain.surface_velocity(radial)
+		_check(Vector3(model.state.air_velocity).distance_to(expected_air_velocity) < 0.001, "Flames receive current air-relative velocity after integration")

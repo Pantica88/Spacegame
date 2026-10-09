@@ -15,6 +15,14 @@ func _initialize() -> void:
 	assert(runtime.surface_texture == loaded.baked_terrain.surface_texture, "All LODs share baked surface colors")
 	assert(runtime.surface_texture.get_width() == 2048 and runtime.surface_texture.get_height() == 1024)
 	assert(runtime.surface_texture.get_image().has_mipmaps(), "Baked surface supports filtered distant rendering")
+	assert(runtime.topography_texture == loaded.baked_terrain.topography_texture, "Every LOD reuses saved topography")
+	assert(runtime.topography_texture.get_width() == 2048 and runtime.topography_texture.get_height() == 1024)
+	assert(runtime.topography_texture.get_image().has_mipmaps(), "Normal detail fades with distance")
+	for key in ["coastline_irregularity", "mountain_height", "erosion", "terrain_detail", "detail_frequency"]:
+		var original: float = loaded.get(key)
+		loaded.set(key, original + 0.1)
+		assert(Terrain.new(loaded)._render_meshes.is_empty(), "Shaping controls reject stale bakes")
+		loaded.set(key, original)
 	for lod in range(5):
 		var mesh := runtime.render_mesh_for_lod(lod)
 		assert(mesh == loaded.baked_terrain.layers[lod], "Runtime consumes the saved mesh")
@@ -25,7 +33,27 @@ func _initialize() -> void:
 	runtime.build()
 	assert(runtime.mesh == loaded.baked_terrain.layers[0])
 	assert(runtime.collision != null, "Collision is derived from the baked full-detail mesh")
-	assert(absf(float(runtime.contact(Vector3.UP*60000.0).radius)-60000.0) < 0.1)
+	assert(runtime.preview_mesh() == runtime.mesh, "Editor, map, moons and collision share one saved mesh")
+	print("PASS: saved color/topography maps, exact mesh channels and shaping cache invalidation")
+	if not _check_visible_contacts(runtime):
+		quit(1)
+		return
+	var moon := Definition.new()
+	moon.radius = 16000.0
+	moon.relief = 500.0
+	moon.has_ocean = false
+	moon.launch_site = false
+	if not _check_visible_contacts(Terrain.new(moon)):
+		quit(1)
+		return
+
+	assert(absf(float(runtime.contact(Vector3.UP*600000.0).radius)-600000.0) < 0.1)
+	var snowy_color := runtime.color_at(Vector3.DOWN, loaded.relief * 1.5, false)
+	loaded.has_snow = false
+	var snowless := Terrain.new(loaded)
+	assert(snowless._render_meshes.is_empty(), "Snow toggle rejects stale baked colors")
+	assert(not snowless.color_at(Vector3.DOWN, loaded.relief * 1.5, false).is_equal_approx(snowy_color), "Disabling snow exposes highland terrain")
+	loaded.has_snow = true
 	loaded.terrain_seed += 1
 	var changed := Terrain.new(loaded)
 	assert(changed._render_meshes.is_empty() and changed._preview_meshes.is_empty(), "Changed settings reject stale bake")
@@ -34,3 +62,20 @@ func _initialize() -> void:
 	assert(Terrain.new(loaded)._render_meshes.is_empty(), "Changed generator rejects stale bake")
 	print("PASS: baked layer persistence, exact mesh channels, collision, stale bake rejection")
 	quit()
+
+func _check_visible_contacts(terrain: RefCounted) -> bool:
+	var arrays: Array = terrain.preview_mesh().surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for offset in range(0, indices.size(), 3003):
+		var point := (vertices[indices[offset]] + vertices[indices[offset + 1]] + vertices[indices[offset + 2]]) / 3.0
+		for time in [0.0, 360.0]:
+			var radial: Vector3 = terrain.rotation_at(time) * point
+			if absf(terrain.clearance(radial, time)) >= 0.03:
+				push_error("Baked visible triangle must lie on the physical surface, including rotation")
+				return false
+			var hit: Dictionary = terrain.segment_hit(radial + radial.normalized() * 10.0, radial - radial.normalized() * 10.0, time, time)
+			if hit.is_empty() or Vector3(hit.position).distance_to(radial) >= 0.03:
+				push_error("Swept impacts must stop at the visible baked triangle")
+				return false
+	return true

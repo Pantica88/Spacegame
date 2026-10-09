@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/explorer_1_preview.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/atlas_1/atlas_1.glb" id="2"]
+
+[node name="Atlas1Preview" type="Node3D"]
+script = ExtResource("1")
+asset = ExtResource("2")
+target = Vector3(0, 0, 0)
+caption = "ATLAS–1  /  DECOUPLER\nSlim open ring • 20 cm body"
+screenshot_path = "res://assets/models/atlas_1/preview.png"
+initial_pitch = 0.60
+initial_distance = 4.0

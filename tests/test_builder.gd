@@ -263,7 +263,27 @@ func _run() -> void:
 	for child in game.assembly_list.get_children():
 		if child.get("part_id") == "decoupler": unlocked_decoupler = child
 		if child.get("part_id") == "tank": still_locked_tank = child
-	check(unlocked_decoupler != null and not unlocked_decoupler.locked and still_locked_tank.locked, "Capsule unlocks only its next connection")
+	check(unlocked_decoupler != null and not unlocked_decoupler.locked and still_locked_tank != null and not still_locked_tank.locked, "Capsule unlocks decoupler and fuel tanks")
+	await drag_part("tank", "tank")
+	var direct_tank: Dictionary = game.design.assembly.parts.filter(func(part): return part.kind == "tank")[0]
+	var direct_capsule_base: float = game.world._capsule_center_local - 1.2
+	var direct_tank_top: float = game.world.installed_part_position(direct_tank.id).y + 1.075
+	check(absf(direct_capsule_base - direct_tank_top) < 0.01, "Fuel tank seats flush against capsule when no decoupler is installed")
+	check(game._part_available("fins") and game._part_available("separator") and game._part_available("sparrow"), "Tank unlocks fins, separators and engines without a decoupler")
+	await drag_part("fins", "fins@capsule")
+	check(game.design.fins and not game.design.decoupler, "Fins install on a no-decoupler craft")
+	game.radial_symmetry = 2
+	await drag_part("separator", "separator@" + str(direct_tank.id))
+	check(game.design.separator and not game.design.decoupler, "Separators install on a no-decoupler craft")
+	check(game._part_available("boosters"), "No-decoupler separators unlock boosters")
+	await drag_part("boosters", "boosters")
+	check(game.design.boosters and not game.design.decoupler, "Boosters install on a no-decoupler craft")
+	await drag_part("sparrow", "engine")
+	check(game.design.engine == "sparrow" and not game.design.decoupler, "Engines install on a no-decoupler craft")
+	check(game.Parts.Craft.blockers(game.design.assembly).is_empty(), "No-decoupler craft can pass flight checks")
+	check(not game.launch_button.disabled, "No-decoupler craft can roll out to the pad")
+	game._new_craft()
+	await drag_part("capsule", "capsule")
 	await drag_part("decoupler", "decoupler")
 	var capsule_after_decoupler: Vector2 = game.world.camera.unproject_position(game.world._rocket.to_global(Vector3(0, game.world._capsule_center_local, 0)))
 	check(capsule_after_decoupler.distance_to(fixed_capsule_screen) < 0.5, "Decoupler grows downward without moving capsule")
@@ -271,7 +291,7 @@ func _run() -> void:
 	var unlocked_tank: Control
 	for child in game.assembly_list.get_children():
 		if child.get("part_id") == "tank": unlocked_tank = child
-	check(unlocked_tank != null and not unlocked_tank.locked, "Decoupler unlocks fuel tanks")
+	check(unlocked_tank != null and not unlocked_tank.locked, "Fuel tanks stay available after adding a decoupler")
 	await drag_part("tank", "tank")
 	var capsule_after_tank: Vector2 = game.world.camera.unproject_position(game.world._rocket.to_global(Vector3(0, game.world._capsule_center_local, 0)))
 	check(capsule_after_tank.distance_to(fixed_capsule_screen) < 0.5, "Tank grows downward without moving capsule")
@@ -293,15 +313,59 @@ func _run() -> void:
 	await process_frame
 	game.world.preview_drag("sparrow", Vector3.ZERO, false, Vector2(900, 500))
 	var free_engine_preview: Node3D = game.world._edit_preview
-	check(_has_hidden_model_branch(free_engine_preview), "Free engine drag uses a clean engine silhouette without visible exhaust")
+	check(free_engine_preview.get_child_count() == 1 and free_engine_preview.get_child(0).name == "SparrowEngine1", "Free Sparrow drag uses the authored engine without exhaust")
 	var free_engine_meshes := _mesh_count(free_engine_preview)
 	game.world.preview_drag("sparrow", game._snap_candidates("sparrow")[0][1], true, Vector2.ZERO)
-	check(_mesh_count(game.world._edit_preview) > free_engine_meshes, "Engine snap preview adds its mounted collar shape")
+	check(_mesh_count(game.world._edit_preview) == free_engine_meshes, "Sparrow snap preview retains its authored mounting collar")
 	await drag_part("sparrow", "engine")
 	var capsule_after_engine: Vector2 = game.world.camera.unproject_position(game.world._rocket.to_global(Vector3(0, game.world._capsule_center_local, 0)))
 	check(capsule_after_engine.distance_to(fixed_capsule_screen) < 0.5, "Engine grows downward without moving capsule")
 	check(game.design.decoupler and game.design.tanks == 1 and game.design.engine == "sparrow", "Build a connected launch core from catalogue drops")
 	check(not game.launch_button.disabled, "Completed core can launch")
+	check(game._part_available("decoupler"), "Engine bottom allows another decoupler below a complete core")
+	var lower_mounts: Array = game._snap_candidates("decoupler")
+	check(lower_mounts.size() == 1 and lower_mounts[0][0] == "engine_decoupler", "Lower decoupler snaps below the engine")
+	await drag_part("kestrel", "engine")
+	await drag_part("decoupler", "engine_decoupler")
+	check(game.Parts.Craft.valid(game.design.assembly), "Engine decoupler produces a valid saved assembly")
+	check(game.world._part_parent("engine_decoupler") == "engine", "Lower decoupler attaches to the engine")
+	check(is_instance_valid(game.world._engine_shell), "Lower decoupler encloses the engine in a shell")
+	check(_part_picker("engine_decoupler") != null, "Lower decoupler can be selected")
+	var shell_mesh: MeshInstance3D = game.world._engine_shell.get_child(0)
+	check(shell_mesh.mesh.cap_bottom and shell_mesh.material_override.cull_mode == BaseMaterial3D.CULL_DISABLED, "Engine shell covers the nozzle from below and inside")
+	var engine_model: Node3D = game.world._engine_shell.get_parent().get_node("KestrelEngine1")
+	for mesh_node in engine_model.find_children("*", "MeshInstance3D", true, false):
+		for surface in range(mesh_node.mesh.get_surface_count()):
+			var vertices: PackedVector3Array = mesh_node.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+			for vertex in vertices:
+				var point: Vector3 = shell_mesh.to_local(mesh_node.to_global(vertex))
+				if Vector2(point.x, point.z).length() > shell_mesh.mesh.top_radius or absf(point.y) > shell_mesh.mesh.height * 0.5 + 0.001:
+					check(false, "Kestrel geometry fits completely inside the engine shell")
+					break
+	var fixed_engine: Vector3 = game.world._rocket.to_global(game.world.installed_part_position("engine"))
+	await drag_part("tank", "tank")
+	var lower_tanks: Array = game.design.assembly.parts.filter(func(part): return part.kind == "tank" and part.parent == "engine_decoupler")
+	check(lower_tanks.size() == 1, "Fuel tank attaches below engine decoupler")
+	if lower_tanks.size() == 1:
+		var tank_top: float = game.world.installed_part_position(lower_tanks[0].id).y + 1.075
+		check(is_equal_approx(tank_top, game.world.installed_part_position("engine_decoupler").y - 0.1), "Lower fuel tank seats flush against decoupler")
+	check(game.world._rocket.to_global(game.world.installed_part_position("engine")).distance_to(fixed_engine) < 0.001, "Adding lower fuel keeps the engine fixed in the workshop")
+	await drag_part("sparrow", "engine")
+	var both_engines: Array = game.Parts.Craft.engines(game.design)
+	check(both_engines.size() == 2 and both_engines[0].kind == "kestrel" and both_engines[1].kind == "sparrow", "Lower tank accepts a second engine without replacing Kestrel")
+	if both_engines.size() == 2:
+		var lower_engine: Dictionary = both_engines[1]
+		check(lower_engine.parent == lower_tanks[0].id and _part_picker(lower_engine.id) != null, "Second engine attaches to the lower tank and can be selected")
+		check(game.world._engine_flames.size() == 2, "Both installed engines are rendered")
+		check(game.world._rocket.to_global(game.world.installed_part_position("engine")).distance_to(fixed_engine) < 0.001, "Adding a second engine preserves the upper engine position")
+		await drag_part("titan", "engine")
+		check(game.Parts.Craft.engines(game.design).size() == 2 and game.Parts.Craft.engines(game.design)[1].kind == "titan", "Replacing the lower engine keeps the upper engine")
+		check(game.Parts.Craft.valid(game.design.assembly), "Two-engine craft and ignition actions are valid")
+	game._remove_attachment("engine_decoupler")
+	await process_frame
+	await process_frame
+	check(not is_instance_valid(game.world._engine_shell) and game.design.engine == "kestrel" and game.Parts.Craft.engines(game.design).size() == 1, "Removing lower decoupler removes lower engine while preserving Kestrel")
+	await drag_part("sparrow", "engine")
 	var decoupler_subassembly: Array[String] = game._affected_part_ids("decoupler")
 	check("decoupler" in decoupler_subassembly and decoupler_subassembly.any(func(id): return str(id).begins_with("tank_")) and "engine" in decoupler_subassembly, "Selecting the decoupler includes its connected lower stack")
 	var fin_surfaces: Array = game._snap_candidates("fins")
@@ -379,20 +443,52 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	check(game.design.tanks == 2, "Remove tank updates design")
-	var booster_target: Vector2 = game.world.camera.unproject_position(game.world._rocket.to_global(game._snap_candidates("boosters")[0][1]))
+	check(not game._part_available("boosters"), "Boosters require separate mounting hardware")
+	game.radial_symmetry = 2
+	var camera_local: Vector3 = game.world._rocket.to_local(game.world.camera.global_position)
+	var surface_angle := atan2(camera_local.x,camera_local.z)+.2
+	var tanks_now: Array = game.design.assembly.parts.filter(func(part): return part.kind == "tank")
+	var mount_parent: String = tanks_now[-1].id
+	var surface_point := Vector3(sin(surface_angle)*.94,game.world.installed_part_position(mount_parent).y+.2,cos(surface_angle)*.94)
+	var separator_target: Vector2 = game.world.camera.unproject_position(game.world._rocket.to_global(surface_point))
+	game._finish_build_drag("separator", separator_target)
+	await process_frame
+	await process_frame
+	var mounts: Array = game.Parts.Craft.radial_instances(game.design,"separator")
+	check(mounts.size() == 2, "Two-way surface symmetry installs independent separators")
+	check(game._part_available("boosters"), "Mounted separators unlock boosters")
+	var booster_position: Vector3 = mounts[0].position
+	booster_position.x *= 1.96/1.17
+	booster_position.z *= 1.96/1.17
+	var booster_target: Vector2 = game.world.camera.unproject_position(game.world._rocket.to_global(booster_position))
 	game._finish_build_drag("boosters", booster_target)
 	await process_frame
 	await process_frame
 	check(game.design.boosters, "Attach boosters updates design")
+	check(game.world._booster_flames.size() == 8, "Four aligned exhausts per Booster-1")
+	var mount_id: String = mounts[0].id
+	var move_point := surface_point
+	move_point.y = game.world.installed_part_position(tanks_now[0].id).y
+	var relocation_mouse: Vector2 = game.world.camera.unproject_position(game.world._rocket.to_global(move_point))
+	game._begin_return_drag(mount_id)
+	game._finish_return_drag(mount_id, relocation_mouse)
+	await process_frame
+	await process_frame
+	check(game.world._part_parent(mount_id) == tanks_now[0].id, "Separator reattaches to another tank surface")
+	check(game.Parts.Craft.valid(game.design.assembly), "Repositioned radial subassembly remains serializable")
+	game._undo_edit()
+	await process_frame
+	await process_frame
+	check(game.world._part_parent(mount_id) == mount_parent, "Undo restores side mount and its booster")
+	await capture("radial-parts")
 	await drag_part("kestrel", "engine")
 	check(game.design.engine == "kestrel", "Drag engine replaces mounted engine")
 	var unchanged_tanks: int = game.design.tanks
 	game._finish_build_drag("tank", Vector2(850, 180))
 	check(game.design.engine == "kestrel" and game.design.tanks == unchanged_tanks, "Dropping away from a connection rejects the tank")
-	await drag_part("tank", "tank")
-	await drag_part("tank", "tank")
-	await drag_part("tank", "tank")
-	check(game.design.tanks == 4, "Full tank stack rejects extra drops")
+	for index in range(game.Parts.Craft.MAX_TANKS - int(game.design.tanks) + 1):
+		await drag_part("tank", "tank")
+	check(game.design.tanks == game.Parts.Craft.MAX_TANKS, "Full tank stack rejects extra drops")
 	game._remove_attachment("tank")
 	await process_frame
 	await process_frame
@@ -402,7 +498,7 @@ func _run() -> void:
 	await process_frame
 	check(game.design.engine == "kestrel" and game.design.boosters, "Undo restores the removed lower subassembly")
 	# Continue the staging flight with a compact known-good booster craft; the
-	# four-tank graph above exists specifically to exercise subtree removal.
+	# maximum-height graph above exists specifically to exercise subtree removal.
 	var staging_legacy: Dictionary = load("res://scripts/parts.gd").default_design()
 	staging_legacy.boosters = true
 	staging_legacy.booster_first = false
@@ -425,7 +521,7 @@ func _run() -> void:
 	check(reloaded.data.design.booster_first, "Ignition plan survives saved profile reload")
 	check(absf(float(reloaded.data.design.assembly.root_height) - float(game.design.assembly.root_height)) < 0.01, "Capsule assembly height survives saved profile reload")
 	await capture("stages")
-	game._roll_out()
+	await game._roll_out()
 	game._stage()
 	check(not game.flight.state.engine_on and game.flight.state.boosters_on, "Launch follows selected ignition plan")
 	for frame in range(600):

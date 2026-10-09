@@ -20,25 +20,29 @@ func _run() -> void:
 	world = World.new()
 	root.add_child(world)
 	world.set_mode("flight")
-	var initial_sun: Vector3 = world._sun_direction
 	world.advance_solar_time(World.SOLAR_DAY_SECONDS * 0.25)
-	check(world._sun_direction.distance_to(initial_sun) > 0.5, "Sun advances with simulation time")
+	check(world._sun_physical_position.is_equal_approx(world.SolarBody.POSITION), "Sun stays at a reachable physical position")
 	var quarter_sun: Vector3 = world._sun_direction
 	world.advance_solar_time(-1.0)
 	check(world._sun_direction.is_equal_approx(quarter_sun), "Invalid or negative time does not reverse the sun")
 	world.set_mode("flight")
-	world.advance_solar_time(World.PLANET_ROTATION_SECONDS*0.25)
+	world.advance_solar_time(float(world.PlanetSurface.home().definition.rotation_seconds)*0.25)
 	check(world._planet.basis.x.distance_to(Vector3.RIGHT) > 1.0, "Planet rotates a quarter turn with simulation time")
 	check(world._planet.basis.is_equal_approx(world._landscape.basis), "Launch structures follow the rotating surface")
 	check((world._planet.basis*Vector3.UP).is_equal_approx(Vector3.UP), "Polar launchpad remains attached to its surface position")
-	world.advance_solar_time(World.PLANET_ROTATION_SECONDS*0.75)
+	world.advance_solar_time(float(world.PlanetSurface.home().definition.rotation_seconds)*0.75)
 	check(world._planet.basis.is_equal_approx(Basis.IDENTITY), "Planet rotation wraps continuously after a full turn")
 	world.set_mode("flight")
 	world._rocket.hide()
-	_pose(Vector3(0,160000,0))
+	for material in [world._sky_material, world._planet.material_override]:
+		check(is_equal_approx(material.get_shader_parameter("BODY_RADIUS"), 600.0), "Atmosphere uses the 600 km body radius")
+		check(is_equal_approx(material.get_shader_parameter("AIR_RADIUS"), 617.5), "Atmosphere shell follows the saved height")
+	check(world.air_density_visual(600.0) > 0.99, "Surface lighting starts at the enlarged surface")
+	check(world.air_density_visual(617.5) == 0.0, "Atmospheric lighting ends at the configured boundary")
+	_pose(Vector3(0,World.PLANET_RADIUS * (8.0 / 3.0),0))
 	world._landscape.hide()
 	world.camera.position = Vector3.ZERO
-	world.camera.far = 500000.0
+	world.camera.far = World.PLANET_RADIUS * 10.0
 	world.camera.look_at(world._planet.position, Vector3.FORWARD)
 	world.set_sun_direction(Vector3.UP)
 	var day := await capture("orbital-day")
@@ -76,7 +80,7 @@ func _run() -> void:
 	quit(0 if failures.is_empty() else 1)
 
 func _pose(position: Vector3) -> void:
-	world.sync_flight({"position":position,"altitude":(position+Vector3(0,60000,0)).length()-60000.0,"orientation":Basis.IDENTITY,"engine_on":false,"fuel":0.0,"boosters_attached":false,"capsule_only":false,"chute_deployed":false},0.0)
+	world.sync_flight({"position":position,"altitude":(position+Vector3(0,600000,0)).length()-600000.0,"orientation":Basis.IDENTITY,"engine_on":false,"fuel":0.0,"boosters_attached":false,"capsule_only":false,"chute_deployed":false},0.0)
 
 func capture(label: String) -> Image:
 	for frame in range(3): await process_frame

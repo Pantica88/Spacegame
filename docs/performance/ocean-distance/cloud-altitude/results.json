@@ -1,0 +1,91 @@
+{
+	"engine": "4.5.1-stable (official)",
+	"resolution": "1100x700",
+	"rows": [
+		{
+			"cloud_gpu_ms": 3.8050000667572,
+			"frame_ms": 9.668,
+			"gpu_ms": 5.49700021743774,
+			"mode": "baseline",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 3.79500007629395,
+			"frame_ms": 6.729,
+			"gpu_ms": 2.63000011444092,
+			"mode": "no_ocean",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 3.82200002670288,
+			"frame_ms": 7.042,
+			"gpu_ms": 2.84999990463257,
+			"mode": "no_air",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 5.511,
+			"gpu_ms": 5.21700000762939,
+			"mode": "no_clouds",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 2.52999997138977,
+			"frame_ms": 8.327,
+			"gpu_ms": 5.49300003051758,
+			"mode": "cloud_scale_0375",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 1.40499997138977,
+			"frame_ms": 7.215,
+			"gpu_ms": 5.49399995803833,
+			"mode": "cloud_scale_025",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 2.70600008964539,
+			"frame_ms": 7.997,
+			"gpu_ms": 4.95900011062622,
+			"mode": "baseline",
+			"scenario": "altitude_100km"
+		},
+		{
+			"cloud_gpu_ms": 2.70000004768372,
+			"frame_ms": 7.994,
+			"gpu_ms": 4.96500015258789,
+			"mode": "no_ocean",
+			"scenario": "altitude_100km"
+		},
+		{
+			"cloud_gpu_ms": 2.70700001716614,
+			"frame_ms": 5.323,
+			"gpu_ms": 2.2960000038147,
+			"mode": "no_air",
+			"scenario": "altitude_100km"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 3.862,
+			"gpu_ms": 3.64400005340576,
+			"mode": "no_clouds",
+			"scenario": "altitude_100km"
+		},
+		{
+			"cloud_gpu_ms": 1.75800001621246,
+			"frame_ms": 7.116,
+			"gpu_ms": 5.05399990081787,
+			"mode": "cloud_scale_0375",
+			"scenario": "altitude_100km"
+		},
+		{
+			"cloud_gpu_ms": 1.06200003623962,
+			"frame_ms": 6.54,
+			"gpu_ms": 5.13600015640259,
+			"mode": "cloud_scale_025",
+			"scenario": "altitude_100km"
+		}
+	],
+	"samples_per_case": 80
+}

@@ -14,7 +14,7 @@ The first commercial scope should prove one planet and a meaningful set of missi
 
 The foundation includes configurable rocket stacks, three engine choices, optional boosters and fins, 3D launch and flight, central gravity, fuel and drag, capsule separation and recovery, an orbital map, three starter contracts, and local progress saving. There is procedural engine audio, a sound toggle, manual pause, and fullscreen support. Desktop export presets establish a packaging path. These features need broader testing, balancing, and art direction before they can support a commercial release.
 
-The starter contracts cover a 1 km recovery flight, a 12 km recovery flight, and a closed orbit above the 18 km atmosphere. The orbital contract does not require recovery. A saved profile preserves the latest design, records, and completed contracts; it does not resume an active flight. The [README](../README.md) includes tested starter flight profiles.
+The starter contracts cover a 1 km recovery flight, a 12 km recovery flight, and a closed orbit above the 90 km atmosphere. The orbital contract does not require recovery. A saved profile preserves the latest design, records, and completed contracts; it does not resume an active flight. The [README](../README.md) includes tested starter flight profiles.
 
 ## Product gates
 

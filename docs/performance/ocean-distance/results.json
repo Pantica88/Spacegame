@@ -1,0 +1,259 @@
+{
+	"engine": "4.5.1-stable (official)",
+	"resolution": "1100x700",
+	"rows": [
+		{
+			"cloud_gpu_ms": 1.13499999046326,
+			"frame_ms": 7.615,
+			"gpu_ms": 6.15000009536743,
+			"mode": "baseline",
+			"scenario": "close"
+		},
+		{
+			"cloud_gpu_ms": 1.14100003242493,
+			"frame_ms": 4.606,
+			"gpu_ms": 3.21099996566772,
+			"mode": "no_ocean",
+			"scenario": "close"
+		},
+		{
+			"cloud_gpu_ms": 1.15499997138977,
+			"frame_ms": 7.033,
+			"gpu_ms": 5.47200012207031,
+			"mode": "no_ocean_air",
+			"scenario": "close"
+		},
+		{
+			"cloud_gpu_ms": 1.14199995994568,
+			"frame_ms": 6.688,
+			"gpu_ms": 5.25500011444092,
+			"mode": "no_air",
+			"scenario": "close"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 4.955,
+			"gpu_ms": 4.75799989700317,
+			"mode": "no_clouds",
+			"scenario": "close"
+		},
+		{
+			"cloud_gpu_ms": 1.14999997615814,
+			"frame_ms": 6.586,
+			"gpu_ms": 5.14099979400635,
+			"mode": "no_swell",
+			"scenario": "close"
+		},
+		{
+			"cloud_gpu_ms": 1.15400004386902,
+			"frame_ms": 7.856,
+			"gpu_ms": 6.33799982070923,
+			"mode": "baseline",
+			"scenario": "zoom_90m"
+		},
+		{
+			"cloud_gpu_ms": 1.15699994564056,
+			"frame_ms": 4.658,
+			"gpu_ms": 3.20099997520447,
+			"mode": "no_ocean",
+			"scenario": "zoom_90m"
+		},
+		{
+			"cloud_gpu_ms": 1.15600001811981,
+			"frame_ms": 7.126,
+			"gpu_ms": 5.62400007247925,
+			"mode": "no_ocean_air",
+			"scenario": "zoom_90m"
+		},
+		{
+			"cloud_gpu_ms": 1.16499996185303,
+			"frame_ms": 6.981,
+			"gpu_ms": 5.40899991989136,
+			"mode": "no_air",
+			"scenario": "zoom_90m"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 5.258,
+			"gpu_ms": 4.94999980926514,
+			"mode": "no_clouds",
+			"scenario": "zoom_90m"
+		},
+		{
+			"cloud_gpu_ms": 1.15199995040894,
+			"frame_ms": 6.792,
+			"gpu_ms": 5.27500009536743,
+			"mode": "no_swell",
+			"scenario": "zoom_90m"
+		},
+		{
+			"cloud_gpu_ms": 1.22599995136261,
+			"frame_ms": 8.219,
+			"gpu_ms": 6.55900001525879,
+			"mode": "baseline",
+			"scenario": "zoom_500m"
+		},
+		{
+			"cloud_gpu_ms": 1.18900001049042,
+			"frame_ms": 4.722,
+			"gpu_ms": 3.23900008201599,
+			"mode": "no_ocean",
+			"scenario": "zoom_500m"
+		},
+		{
+			"cloud_gpu_ms": 1.18400001525879,
+			"frame_ms": 7.408,
+			"gpu_ms": 5.80999994277954,
+			"mode": "no_ocean_air",
+			"scenario": "zoom_500m"
+		},
+		{
+			"cloud_gpu_ms": 1.22399997711182,
+			"frame_ms": 7.125,
+			"gpu_ms": 5.55100011825562,
+			"mode": "no_air",
+			"scenario": "zoom_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 5.332,
+			"gpu_ms": 5.05100011825562,
+			"mode": "no_clouds",
+			"scenario": "zoom_500m"
+		},
+		{
+			"cloud_gpu_ms": 1.20799994468689,
+			"frame_ms": 6.996,
+			"gpu_ms": 5.44299983978271,
+			"mode": "no_swell",
+			"scenario": "zoom_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.957000017166138,
+			"frame_ms": 6.65,
+			"gpu_ms": 5.31300020217896,
+			"mode": "baseline",
+			"scenario": "altitude_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.977999985218048,
+			"frame_ms": 4.467,
+			"gpu_ms": 3.25799989700317,
+			"mode": "no_ocean",
+			"scenario": "altitude_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.925000011920929,
+			"frame_ms": 6.079,
+			"gpu_ms": 4.83500003814697,
+			"mode": "no_ocean_air",
+			"scenario": "altitude_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.930999994277954,
+			"frame_ms": 5.799,
+			"gpu_ms": 4.58599996566772,
+			"mode": "no_air",
+			"scenario": "altitude_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 3.984,
+			"gpu_ms": 3.78099989891052,
+			"mode": "no_clouds",
+			"scenario": "altitude_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.930999994277954,
+			"frame_ms": 5.891,
+			"gpu_ms": 4.66699981689453,
+			"mode": "no_swell",
+			"scenario": "altitude_500m"
+		},
+		{
+			"cloud_gpu_ms": 0.809000015258789,
+			"frame_ms": 7.345,
+			"gpu_ms": 6.22800016403198,
+			"mode": "baseline",
+			"scenario": "altitude_6km"
+		},
+		{
+			"cloud_gpu_ms": 0.811999976634979,
+			"frame_ms": 4.79,
+			"gpu_ms": 3.75300002098083,
+			"mode": "no_ocean",
+			"scenario": "altitude_6km"
+		},
+		{
+			"cloud_gpu_ms": 0.813000023365021,
+			"frame_ms": 6.271,
+			"gpu_ms": 5.15899991989136,
+			"mode": "no_ocean_air",
+			"scenario": "altitude_6km"
+		},
+		{
+			"cloud_gpu_ms": 0.801999986171722,
+			"frame_ms": 5.664,
+			"gpu_ms": 4.5460000038147,
+			"mode": "no_air",
+			"scenario": "altitude_6km"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 4.774,
+			"gpu_ms": 4.4980001449585,
+			"mode": "no_clouds",
+			"scenario": "altitude_6km"
+		},
+		{
+			"cloud_gpu_ms": 0.814000010490417,
+			"frame_ms": 6.683,
+			"gpu_ms": 5.58099985122681,
+			"mode": "no_swell",
+			"scenario": "altitude_6km"
+		},
+		{
+			"cloud_gpu_ms": 3.84400010108948,
+			"frame_ms": 9.854,
+			"gpu_ms": 5.60400009155273,
+			"mode": "baseline",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 3.85199999809265,
+			"frame_ms": 6.78,
+			"gpu_ms": 2.65700006484985,
+			"mode": "no_ocean",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 3.88599991798401,
+			"frame_ms": 8.162,
+			"gpu_ms": 3.99499988555908,
+			"mode": "no_ocean_air",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 3.86999988555908,
+			"frame_ms": 7.114,
+			"gpu_ms": 2.86899995803833,
+			"mode": "no_air",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 0.0,
+			"frame_ms": 5.542,
+			"gpu_ms": 5.21999979019165,
+			"mode": "no_clouds",
+			"scenario": "altitude_22km"
+		},
+		{
+			"cloud_gpu_ms": 3.83899998664856,
+			"frame_ms": 9.113,
+			"gpu_ms": 4.8730001449585,
+			"mode": "no_swell",
+			"scenario": "altitude_22km"
+		}
+	],
+	"samples_per_case": 80
+}

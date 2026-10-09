@@ -44,6 +44,15 @@ func _init() -> void:
 			flight.step(1.0,{"throttle":0.0})
 			check(flight.state.status == "landed","Slow capsule lands on elevated terrain")
 			check(flight.state.terrain_clearance < 0.1,"Landed capsule touches visible ground")
+			var landed_radial: Vector3 = flight.state.position-Flight.PLANET_CENTER
+			var landed_hit: Dictionary = terrain.contact(landed_radial,flight.simulation_time())
+			check(Vector3(flight.state.terrain_normal).dot(landed_hit.normal) > 0.9999,"Recovery telemetry uses the visible terrain normal")
+			var plane_distance := (landed_radial.length()-float(landed_hit.radius))*landed_radial.normalized().dot(landed_hit.normal)
+			check(absf(float(flight.state.terrain_plane_distance)-plane_distance) < 0.01,"Recovery plane follows the hillside")
+			var previous_velocity: Vector3 = flight.state.velocity
+			flight.step(1.0/60.0,{"throttle":0.0})
+			var expected_acceleration: Vector3 = (Vector3(flight.state.velocity)-previous_velocity)*60.0
+			check(Vector3(flight.state.acceleration_vector).is_equal_approx(expected_acceleration),"Touchdown refreshes acceleration for recovery visuals")
 			check(flight.state.altitude > 150.0,"Mountain landing is above sea level")
 			check(flight.state.impact_speed < 8.0,"Impact uses speed relative to spinning ground")
 			var fast := Flight.new()

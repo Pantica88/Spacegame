@@ -7,10 +7,20 @@ var hit_size := Vector2(96, 96)
 func _ready() -> void:
 	size = hit_size
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	tooltip_text = "Drag back to the parts list to remove · Delete removes · R rotates"
+	tooltip_text = "Drag into a stage to assign activation · Drag to parts list to remove symmetry group · Shift-drag removes one · Delete removes group · R rotates"
 
 func _process(_delta: float) -> void:
-	position = game.world.camera.unproject_position(game.world._rocket.to_global(anchor)) - size * 0.5
+	var camera: Camera3D = game.world.camera
+	var point: Vector3 = game.world._rocket.to_global(anchor)
+	var center := camera.unproject_position(point)
+	if part_id.begins_with("tank_"):
+		# Fit the picker to the tank at the current zoom so tall stacks do not
+		# cover one another with the original fixed 128-pixel hit regions.
+		var top := camera.unproject_position(game.world._rocket.to_global(anchor + Vector3(0, 1.025, 0)))
+		var bottom := camera.unproject_position(game.world._rocket.to_global(anchor - Vector3(0, 1.025, 0)))
+		var edge := camera.unproject_position(point + camera.global_basis.x * 0.95)
+		size = Vector2(clampf(center.distance_to(edge) * 2.0, 12.0, hit_size.x), clampf(top.distance_to(bottom), 12.0, hit_size.y))
+	position = center - size * 0.5
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:

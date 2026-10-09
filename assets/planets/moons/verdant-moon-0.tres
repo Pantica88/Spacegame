@@ -1,0 +1,26 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Resource" path="res://assets/planets/moons/baked/verdant-moon-0-2245f6bef92bde7731efdf5d6dbfd276a9ef3f69e2e4f14b71395a97ce426bd2.res" id="1_s3dft"]
+[ext_resource type="Script" path="res://scripts/planet_definition.gd" id="2_o0xmn"]
+
+[resource]
+script = ExtResource("2_o0xmn")
+planet_name = "Mun"
+terrain_seed = 63890
+radius = 16000.0
+surface_gravity = 1.62
+atmosphere_density = 0.0
+atmosphere_height = 0.0
+atmosphere_visual_density = 0.0
+orbit_period_days = 1.60861111111111
+map_color = Color(0.6666667, 0.6666667, 0.6666667, 1)
+continent_frequency = 1.0
+relief = 500.0
+mountain_frequency = 4.8
+has_ocean = false
+launch_site = false
+lowland = Color(0.46666667, 0.46666667, 0.47843137, 1)
+highland = Color(0.6666667, 0.6666667, 0.6666667, 1)
+dryland = Color(0.53333336, 0.5176471, 0.5019608, 1)
+baked_terrain = ExtResource("1_s3dft")
+moon_orbit_distance_km = 12000.0

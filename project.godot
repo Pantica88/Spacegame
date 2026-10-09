@@ -3,9 +3,10 @@ config_version=5
 
 [application]
 config/name="Aphelion — Flight Works"
-config/version="0.3.18"
+config/version="0.3.26"
 config/description="Build something worth bringing home. A 3D rocket-building sandbox."
 run/main_scene="res://scenes/main.tscn"
+run/max_fps=120
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://assets/icon.svg"
 config/use_custom_user_dir=true
@@ -14,11 +15,13 @@ config/custom_user_dir_name="BlufftonFlightWorks/Aphelion"
 [display]
 window/size/viewport_width=1440
 window/size/viewport_height=900
-window/size/window_width_override=1280
-window/size/window_height_override=800
+window/size/window_width_override=1920
+window/size/window_height_override=1080
 window/size/min_width=960
 window/size/min_height=600
 window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/vsync/vsync_mode=0
 
 [rendering]
 renderer/rendering_method="gl_compatibility"

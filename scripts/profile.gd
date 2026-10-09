@@ -3,7 +3,7 @@ extends RefCounted
 
 const SAVE_PATH: String = "user://profile.json"
 const SAVE_VERSION: int = 1
-const MAX_SAVE_BYTES: int = 65536
+const MAX_SAVE_BYTES: int = 262144
 const MAX_COUNTER: int = 2147483647
 const COMPLETED_IDS: Array[String] = ["hop", "sky", "orbit"]
 const Parts = preload("res://scripts/parts.gd")
@@ -44,12 +44,17 @@ func _init(save_path: String = SAVE_PATH) -> void:
 
 func save() -> bool:
 	var clean: Dictionary = _sanitize(data)
+	var contents: String = JSON.stringify(clean, "\t")
+	# Never replace a usable save with a document our loader would reject.
+	if contents.to_utf8_buffer().size() > MAX_SAVE_BYTES:
+		last_error = "Saved profile is too large. The previous save has been preserved."
+		return false
 	var temporary: String = _save_path + ".tmp"
 	var file: FileAccess = FileAccess.open(temporary, FileAccess.WRITE)
 	if file == null:
 		last_error = "Could not save the profile to disk."
 		return false
-	file.store_string(JSON.stringify(clean, "\t"))
+	file.store_string(contents)
 	file.flush()
 	var write_error: Error = file.get_error()
 	file.close()
@@ -81,7 +86,7 @@ static func _sanitize(stored: Dictionary) -> Dictionary:
 		if source.get("engine") is String:
 			design["engine"] = str(source["engine"])
 		if _is_number(source.get("tanks")) and is_finite(float(source["tanks"])):
-			design["tanks"] = int(clampf(float(source["tanks"]), 1.0, 4.0))
+			design["tanks"] = int(clampf(float(source["tanks"]), 1.0, float(Parts.Craft.MAX_TANKS)))
 		for key: String in ["boosters", "fins", "booster_first"]:
 			if source.get(key) is bool:
 				design[key] = bool(source[key])

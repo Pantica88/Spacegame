@@ -1,0 +1,17 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://brb0jfjr0up48"
+
+[deps]
+
+files=["res://docs/performance/ocean-distance/results.frame.translation", "res://docs/performance/ocean-distance/results.gpu.translation", "res://docs/performance/ocean-distance/results.mode.translation", "res://docs/performance/ocean-distance/results.scenario.translation"]
+
+source_file="res://docs/performance/ocean-distance/results.csv"
+dest_files=["res://docs/performance/ocean-distance/results.frame.translation", "res://docs/performance/ocean-distance/results.gpu.translation", "res://docs/performance/ocean-distance/results.mode.translation", "res://docs/performance/ocean-distance/results.scenario.translation"]
+
+[params]
+
+compress=true
+delimiter=0

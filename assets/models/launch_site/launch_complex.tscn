@@ -1,0 +1,75 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/launch_foundation.glb" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/service_tower.glb" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/control_building.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/utility_tank.glb" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/floodlight.glb" id="5"]
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/access_road.glb" id="6"]
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/tracking_dish.glb" id="7"]
+[ext_resource type="PackedScene" path="res://assets/models/launch_site/blast_barrier.glb" id="8"]
+
+[node name="LaunchComplex" type="Node3D"]
+
+[node name="launch_foundation_0" parent="." instance=ExtResource("1")]
+position = Vector3(0, 0, 0)
+
+[node name="service_tower_1" parent="." instance=ExtResource("2")]
+position = Vector3(-32, 0, -25)
+
+[node name="control_building_2" parent="." instance=ExtResource("3")]
+position = Vector3(39, 0, 32)
+
+[node name="access_road_3" parent="." instance=ExtResource("6")]
+position = Vector3(0, 0, 90)
+
+[node name="tracking_dish_4" parent="." instance=ExtResource("7")]
+position = Vector3(39, 0, -36)
+
+[node name="utility_tank_5" parent="." instance=ExtResource("4")]
+position = Vector3(-44, 0, 8)
+
+[node name="utility_tank_6" parent="." instance=ExtResource("4")]
+position = Vector3(-44, 0, 20)
+
+[node name="utility_tank_7" parent="." instance=ExtResource("4")]
+position = Vector3(-44, 0, 32)
+
+[node name="floodlight_8" parent="." instance=ExtResource("5")]
+position = Vector3(-54, 0, -52)
+
+[node name="floodlight_9" parent="." instance=ExtResource("5")]
+position = Vector3(-54, 0, 0)
+
+[node name="floodlight_10" parent="." instance=ExtResource("5")]
+position = Vector3(-54, 0, 52)
+
+[node name="floodlight_11" parent="." instance=ExtResource("5")]
+position = Vector3(54, 0, -52)
+
+[node name="floodlight_12" parent="." instance=ExtResource("5")]
+position = Vector3(54, 0, 0)
+
+[node name="floodlight_13" parent="." instance=ExtResource("5")]
+position = Vector3(54, 0, 52)
+
+[node name="blast_barrier_14" parent="." instance=ExtResource("8")]
+position = Vector3(-18, 0, -52)
+
+[node name="blast_barrier_15" parent="." instance=ExtResource("8")]
+position = Vector3(-12, 0, -52)
+
+[node name="blast_barrier_16" parent="." instance=ExtResource("8")]
+position = Vector3(-6, 0, -52)
+
+[node name="blast_barrier_17" parent="." instance=ExtResource("8")]
+position = Vector3(0, 0, -52)
+
+[node name="blast_barrier_18" parent="." instance=ExtResource("8")]
+position = Vector3(6, 0, -52)
+
+[node name="blast_barrier_19" parent="." instance=ExtResource("8")]
+position = Vector3(12, 0, -52)
+
+[node name="blast_barrier_20" parent="." instance=ExtResource("8")]
+position = Vector3(18, 0, -52)

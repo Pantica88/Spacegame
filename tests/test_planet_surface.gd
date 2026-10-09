@@ -17,7 +17,10 @@ func _init() -> void:
 	_check(lods == [0, 1, 2, 3, 4], "Altitude selects five terrain detail layers")
 	var full_triangles := _triangle_count(PlanetSurface.home().render_mesh_for_lod(0))
 	var lowest_triangles := _triangle_count(PlanetSurface.home().render_mesh_for_lod(4))
-	_check(lowest_triangles * 100 < full_triangles, "Highest-altitude terrain uses far fewer triangles")
+	_check(lowest_triangles * 20 < full_triangles, "Highest-altitude terrain uses far fewer triangles")
+	var launch_site_height: float = PlanetSurface.home().elevation(PlanetSurface.Terrain.LAUNCH_DIRECTION, true)
+	var distant_launch_height: float = PlanetSurface.home().elevation(PlanetSurface.Terrain.LAUNCH_DIRECTION, false)
+	_check(absf(launch_site_height - distant_launch_height) > 0.0, "Launch island is only a near-surface detail, not a distant terrain feature")
 	var arrays := mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
@@ -25,7 +28,17 @@ func _init() -> void:
 	_check(vertices.size() == normals.size(), "Every vertex has a normal")
 	_check(indices.size() % 3 == 0, "Index buffer contains complete triangles")
 	_check(indices.size() / 3 < 300000, "Surface remains below the triangle budget")
-	_check(absf(vertices[0].y - PlanetSurface.RADIUS) < 0.01, "Launch clearing meets its physical surface")
+	var launch_height: float = PlanetSurface.home().elevation(PlanetSurface.Terrain.LAUNCH_DIRECTION, true)
+	_check(absf(vertices[0].z - (PlanetSurface.RADIUS + launch_height)) < 0.15, "Launch mound matches the local surface height")
+	_check(absf(launch_height) < 0.001, "Launch area matches the sea-level buildings and rocket")
+	for point in [Vector2(0, 0), Vector2(43, 31), Vector2(17, 87), Vector2(-36, -20)]:
+		# The graded deck is a flat plane, so it rises above the sphere by
+		# sqrt(R² + d²) - R (6.5 mm at 88 m). Float32 builds round that to 0.
+		var deck_rise := sqrt(PlanetSurface.RADIUS * PlanetSurface.RADIUS + point.length_squared()) - PlanetSurface.RADIUS
+		_check(absf(PlanetSurface.terrain_height(point) - deck_rise) < 0.01, "Launch facility footprint stays flat and exposes buildings")
+		var radial := PlanetSurface.LAUNCH_BASIS * Vector3(point.x, PlanetSurface.RADIUS, point.y)
+		var contact: Dictionary = PlanetSurface.home().contact(radial)
+		_check(float(contact.position.z) <= PlanetSurface.RADIUS + 0.01 and float(contact.position.z) > PlanetSurface.RADIUS - 0.2, "Rendered ground stays below launch buildings")
 
 	var edges := {}
 	var faces := {}

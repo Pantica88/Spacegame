@@ -31,7 +31,7 @@ func _run() -> void:
 	game.sound.enabled = false
 	game.design = {"name": "Pioneer 01", "tanks": 2, "engine": "sparrow", "boosters": true, "fins": true}
 	game._refresh_design(false)
-	game._roll_out()
+	await game._roll_out()
 	game._stage()
 	game.toast_label.hide()
 	await _save_capture("full-launchpad.png")
