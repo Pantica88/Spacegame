@@ -20,7 +20,6 @@ window/size/min_width=960
 window/size/min_height=600
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-window/vsync/vsync_mode=0
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
