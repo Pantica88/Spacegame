@@ -103,7 +103,8 @@ Everything for this step lives in `~/godot-double/`:
 - Perf comparison at 1280×720, standard preset, idle machine: official (`A-official-2`) vs double with stale bakes (`B-double`). Double adds ~1–2% render CPU and 0.3–0.8 ms frame p95; all scenarios stay well under 16.7 ms. B's lower GPU time and +3 s startup came from runtime-generated terrain; `C-double-rebaked` repeats B with fresh bakes.
 - [x] Like-for-like result, `A-official-2` vs `C-double-rebaked` (same code, fresh bakes, valid, 1280×720): **GPU unchanged (±1%)**, render CPU +1–4%, physics CPU +6–16% (≤0.23 ms), frame mean +0.2–7.2% (about +3.5%), frame p95 +3–8% (0.4–1.0 ms), startup +0.6 s (9.3 s vs 8.7 s). The worst scenario (staging p95 14.1 ms) stays under 16.7 ms. Part of the CPU cost may be the missing LTO (`lto=none`) rather than double precision; official builds use LTO. Optional: test `lto=full` for shipping templates.
 - Game settings (2026-10-09): removed the 120 FPS cap and enabled VSync (Godot default). The perf lab and benchmarks disable VSync themselves.
-- [ ] Point `export_presets.cfg` at the double templates and export
+- [ ] Install templates with `~/godot-double/install-templates.sh` into `~/.local/share/godot/export_templates/4.5.1.stable.double/`, where the double editor finds them by default. `export_presets.cfg` keeps empty `custom_template` paths, so no machine-specific paths get committed. (No templates were installed before this; earlier exports used templates that are no longer present.)
+- [ ] Test-export Linux and Windows to a scratch folder and launch the Linux build. Do not overwrite `build/0.3.26/`, which `play.sh` runs; a version bump and `tools/package_builds.py` are a separate release decision.
 - [x] Performance lab baseline on the double build: `C-double-rebaked` set explicitly with `./perf.sh baseline C-double-rebaked` (B, with stale bakes, had become the automatic baseline)
 
 ## 2. Per-body definitions
