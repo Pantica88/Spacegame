@@ -16,7 +16,7 @@ Version 0.3.26 is the current Linux development build. Run `./play.sh` from this
 
 To edit the game or run from source:
 
-Use **Godot 4.5.1 Standard** (GDScript; no .NET required). [Download the tested version](https://godotengine.org/download/archive/4.5.1-stable/).
+Use **Godot 4.5.1 built with double precision** (`precision=double`; GDScript, no .NET required). Official downloads are single precision only. Build the editor and export templates from source as described in [the multi-planet roadmap](docs/MULTI_PLANET_ROADMAP.md#1-double-precision-godot-build); the build includes a required engine patch. The official [4.5.1 download](https://godotengine.org/download/archive/4.5.1-stable/) still runs the project, but its float32 coordinates fail several precision-sensitive tests and reject bakes made by the double build.
 
 1. Open Godot, choose **Import**, and select `project.godot` in this folder.
 2. Wait for the initial asset import.
@@ -53,7 +53,7 @@ The standalone planet editor runs as its own scene:
 ./tools/run.sh res://scenes/planet_editor.tscn
 ```
 
-The script can use the temporary editor downloaded during development at `/tmp/aphelion-godot/Godot_v4.5.1-stable_linux.x86_64`. Files in `/tmp` may be removed by the operating system; keep your own Godot copy for future development.
+`tools/run.sh` (and every script that uses it, including `tools/check.sh`) picks Godot in this order: `GODOT_BIN`, the double-precision editor at `~/godot-double/src/bin/godot.linuxbsd.editor.double.x86_64`, `godot` or `godot4` on `PATH`, then the official editor downloaded during development to `/tmp/aphelion-godot/`. `./perf.sh` uses the same order.
 
 ## Controls
 
