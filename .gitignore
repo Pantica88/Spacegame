@@ -6,3 +6,7 @@ exports/
 *.tmp
 export_credentials.cfg
 
+__pycache__/
+# Generated terrain bakes; rebuilt by the planet editor.
+assets/planets/baked/
+assets/planets/moons/baked/
