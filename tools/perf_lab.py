@@ -203,7 +203,7 @@ def capture(args, output, lab):
             case_config = dict(scenario=scenario, output_dir=str(case), expected_resolution=config['resolution'],
                                seed=config['seed'], warmup_seconds=config['warmup_seconds'],
                                sample_seconds=config['sample_seconds'], capture=not args.no_capture,
-                               fullscreen=bool(config.get('fullscreen')))
+                               fullscreen=bool(config.get('fullscreen')), renderer=config['renderer'])
             ok, interrupted = run_case(godot, case, case_config)
             success &= ok
             manifest['results'].append(str((case / 'result.json').relative_to(directory)))
