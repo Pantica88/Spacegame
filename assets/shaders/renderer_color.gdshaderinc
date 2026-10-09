@@ -97,3 +97,34 @@ vec4 additive_output(vec3 albedo, float alpha) {
 	return vec4(min(compat_srgb_to_linear(albedo), vec3(1.0)), clamp(alpha, 0.0, 1.0));
 #endif
 }
+
+// Inverse of filmic_tonemap() for displayed values below 1.
+vec3 inverse_filmic_tonemap(vec3 mapped, float white) {
+	const vec3 k_ab = vec3(0.22 * 4.0, 0.30 * 2.0, 0.10);
+	const vec3 k_def = vec3(0.20, 0.01, 0.30);
+	float mapped_white = (white * (k_ab.x * white + k_ab.z * k_ab.y) + k_def.x * k_def.y)
+		/ (white * (k_ab.x * white + k_ab.y) + k_def.x * k_def.z) - k_def.y / k_def.z;
+	// Solve A(1-k)x^2 + B(C-k)x + D(E-kF) = 0 for the curve's value k.
+	vec3 k = mapped * mapped_white + k_def.y / k_def.z;
+	vec3 a = k_ab.x * (1.0 - k);
+	vec3 b = k_ab.y * (k_ab.z - k);
+	vec3 c = k_def.x * (k_def.y - k * k_def.z);
+	return (-b + sqrt(max(b * b - 4.0 * a * c, vec3(0.0)))) / (2.0 * a);
+}
+
+// Translucent (blend_mix) layers. Compatibility tonemaps each layer and mixes
+// the displayed colours by alpha; Forward+ mixes linear light and tonemaps
+// once, which turns a thin cloud over dark ground far lighter. Given the
+// linear light behind the layer (hint_screen_texture), return a colour and
+// alpha for blend_premul_alpha whose result displays as Compatibility's mix.
+// Where the real background differs from that estimate (other translucent
+// layers drawn earlier) it still covers by the same alpha. Assumes the
+// Environment of displayed_screen_color().
+vec4 display_mix_premultiplied(vec3 albedo, float alpha, vec3 background) {
+	float a = clamp(alpha, 0.0, 1.0);
+	vec3 layer = min(exact_linear_to_srgb(filmic_tonemap(compat_srgb_to_linear(albedo), 1.0)), vec3(1.0));
+	vec3 under = displayed_screen_color(background);
+	vec3 shown = mix(under, layer, a);
+	vec3 target = inverse_filmic_tonemap(exact_srgb_to_linear(min(shown, vec3(0.999))), 1.0);
+	return vec4(target - (1.0 - a) * background, a);
+}
