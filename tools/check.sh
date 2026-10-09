@@ -18,6 +18,8 @@ run_check() {
     export XDG_CACHE_HOME="$xdg/cache"
     mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
     printf 'Checking %s...\n' "$name"
+    # The monitor can run before the background shell opens its redirection.
+    : > "$log"
     timeout --kill-after=2s 1800 "$project_dir/tools/run.sh" "$@" > "$log" 2>&1 &
     check_pid=$!
     # An assertion aborts the test method before quit(), leaving SceneTree
