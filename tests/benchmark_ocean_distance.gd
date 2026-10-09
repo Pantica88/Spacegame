@@ -37,7 +37,7 @@ func _run() -> void:
 	for scenario in [{"name":"close", "altitude":3.0,"distance":25.0}, {"name":"zoom_90m", "altitude":3.0,"distance":90.0}, {"name":"zoom_500m", "altitude":3.0,"distance":500.0}, {"name":"altitude_500m", "altitude":500.0,"distance":90.0}, {"name":"altitude_6km", "altitude":6000.0,"distance":90.0}, {"name":"altitude_22km", "altitude":22000.0,"distance":90.0}, {"name":"altitude_100km", "altitude":100000.0,"distance":90.0}]:
 		world._pitch = 0.35
 		world._distance = scenario.distance
-		var position: Vector3 = Vector3(0,-600000,0) + direction * (600000 + scenario.altitude)
+		var position: Vector3 = Vector3(0,-Surface.RADIUS,0) + direction * (Surface.RADIUS + scenario.altitude)
 		world.sync_flight({"position":position,"altitude":scenario.altitude,"orientation":Basis(Quaternion(Vector3.UP,direction)),"engine_on":false,"fuel":0.0,"boosters_attached":false,"capsule_only":true,"chute_deployed":false},0.0)
 		world.set_sun_direction(Vector3(0.5,0.65,0.55).normalized())
 		world._rocket.hide()

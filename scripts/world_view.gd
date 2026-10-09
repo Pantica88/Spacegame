@@ -122,7 +122,8 @@ var _metal: StandardMaterial3D
 var _dark: StandardMaterial3D
 var _glass: StandardMaterial3D
 var _ground: StandardMaterial3D
-const PLANET_RADIUS := 600000.0
+static var PLANET_RADIUS: float:
+	get: return PlanetSurface.RADIUS
 const SOLAR_DAY_SECONDS := 480.0
 var _planet_rotation_time := 0.0
 const INITIAL_SUN_DIRECTION := Vector3(-0.45, 0.42, 0.72)

@@ -80,7 +80,7 @@ func _run() -> void:
 	quit(0 if failures.is_empty() else 1)
 
 func _pose(position: Vector3) -> void:
-	world.sync_flight({"position":position,"altitude":(position+Vector3(0,600000,0)).length()-600000.0,"orientation":Basis.IDENTITY,"engine_on":false,"fuel":0.0,"boosters_attached":false,"capsule_only":false,"chute_deployed":false},0.0)
+	world.sync_flight({"position":position,"altitude":(position+Vector3(0,World.PLANET_RADIUS,0)).length()-World.PLANET_RADIUS,"orientation":Basis.IDENTITY,"engine_on":false,"fuel":0.0,"boosters_attached":false,"capsule_only":false,"chute_deployed":false},0.0)
 
 func capture(label: String) -> Image:
 	for frame in range(3): await process_frame

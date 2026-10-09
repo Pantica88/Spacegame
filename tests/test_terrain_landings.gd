@@ -65,7 +65,7 @@ func _init() -> void:
 		samples += 1
 		if samples == 8: break
 	check(samples == 8,"Landing tests cover eight distinct highland locations")
-	var dry := Terrain.new(preload("res://assets/planets/ochre.tres"))
+	var dry := Terrain.new(load("res://assets/planets/ochre.tres"))
 	check(dry.definition.radius != terrain.definition.radius,"Definitions support different world sizes")
 	check(dry.build().get_surface_count() == 1,"Second planet generates physical geometry")
 	check(dry.contact(Vector3.RIGHT).radius > dry.definition.radius,"Dry world's elevation is physical")

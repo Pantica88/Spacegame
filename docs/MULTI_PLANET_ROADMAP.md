@@ -12,7 +12,7 @@ Update this checklist as work lands. A new session should read this section firs
 
 - [x] **1. Double-precision Godot build** — done 2026-10-09 (see [step 1 progress](#step-1-progress)). Open follow-ups there: saved clouds vs bundled, orphan bake cleanup, optional LTO, upstream bug report.
 - [x] **Prerequisite for 2 and 3:** the full `tools/check.sh` suite passes. **Baseline test failures (2026-10-09):** all 83 checks pass on the default double build with fresh XDG storage per check; all 19 baseline failures are resolved. Fixed assertion hangs, tether sleep timing, hillside rolling resistance and installed fin placement. Updated outdated fixtures for the equatorial pad, larger planet/atmosphere and current staging; restored geometric assertions and removed unnecessary single-precision workarounds. [Test-by-test audit and root causes](BASELINE_TEST_FAILURES.md). No remaining failures. Terrain generation and `BAKE_VERSION` (9) are unchanged; no bundled bakes were rewritten or deleted. Independently verified 2026-10-09: full `tools/check.sh` on the double build, 83/83 pass; test edits reviewed, no tolerances widened. Merged into `multi-planet`.
-- [ ] **2. Per-body definitions and body registry instead of hardcoded radius** — not started
+- [x] **2. Per-body definitions and body registry instead of hardcoded radius** — done 2026-10-09; full suite 84/84 on the double build (see [step 2 progress](#step-2-progress))
 - [ ] **3. Spheres of influence and per-vessel reference frames (many vessels, AI fleets)** — not started
 
 Order: 1 → passing suite → 2 → 3, before visiting other planets. Designing planets in the editor can continue meanwhile; their `.tres` and bake format does not change.
@@ -130,6 +130,18 @@ Add a body registry: every planet and moon has a stable id, and code can look up
 Keep physical facts separate from knowledge: the registry holds what exists, and a separate per-faction knowledge layer holds what that faction knows about each body (undiscovered, detected, observed, surveyed, explored). The orbital map and navigation read through the knowledge layer, so hidden planets can still be simulated. Build only the separation now; discovery gameplay comes later.
 
 **Done when:** changing Verdant's radius in its `.tres` file is the only edit needed for a working build, and a test proves it at two radii.
+
+### Step 2 progress
+
+Implemented 2026-10-09 on branch `step2-body-registry`:
+
+- `scripts/celestial_body.gd`: one planet or moon. Stable `id`, `definition`, `parent` (held weakly; a strong back-reference formed a reference cycle that leaked at exit), `moons`, and `radius`, `surface_gravity`, `mu` (= g r²), `atmosphere_height`, `rotation_seconds`, `terrain` (lazy), `offset_from_parent(time)`. Planets do not move yet (step 3).
+- `scripts/body_registry.gd`: `home()`, `get_body(id)`, `ids()`, `rebuild(home_settings)`. Ids are `verdant`, `verdant/moon-0`, `ochre`. Loads through `PlanetList`, so saved overrides win. The home system loads immediately; other planets on first lookup. (Named `rebuild`, not `reload`: `reload()` is GDScript's built-in script recompilation and silently shadowed the registry method when called from outside.)
+- `scripts/body_knowledge.gd`: per-faction discovery levels (undiscovered → explored), never decreasing, JSON round trip. Default: everything explored, so behaviour is unchanged. The orbital map does not read it yet; wire that in step 3 with navigation.
+- Single source of truth: `physics_math.gd`'s `PLANET_RADIUS`, `PLANET_CENTER`, `SURFACE_GRAVITY`, `MU`, `ATMOSPHERE_HEIGHT` are now static read-only properties of the home body (the hardcoded `PLANET_MASS` is gone; gravity comes from `surface_gravity` only). The aliases in `flight_model.gd`, `planet_surface.gd` (`RADIUS`, `LAUNCH_RADIAL`), `world_view.gd`, `instruments.gd` (`CENTER`) and `solar_body.gd` (`POSITION`) read through them. `PlanetSurface.home()` returns the registry home body's terrain. Values are identical to before (mu relative change 0.0). An aliased read costs about 0.3 µs.
+- Tests: ten tests and benchmarks no longer hardcode 600 km or the 90 km atmosphere. New `tests/test_body_registry.gd` checks ids, lookup, parent links, knowledge, and that every alias follows the definition at radii of 1,200 km and 300 km with different gravity and atmosphere, including orbital periods through default arguments.
+
+Found while doing it (recorded in [FOUNDATION_REVIEW.md](FOUNDATION_REVIEW.md)): `MIN_RAIL_WARP_ALTITUDE = 90000` in `flight_model.gd` applies the home atmosphere height as a time-warp floor to every body, including the Mun (fix in step 3 with per-body logic); `world_view.gd`'s `SOLAR_DAY_SECONDS = 480` and `_solar_time` are written but never read (dead code); moon orbital periods are stored data, not derived from the parent's mu and the orbit distance; a Godot 4.5 engine bug where preload order breaks planet resources (fixed in 4.7.2; worked around, see FOUNDATION_REVIEW.md entry 13).
 
 ## 3. Spheres of influence and per-vessel reference frames
 

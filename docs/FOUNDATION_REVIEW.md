@@ -22,6 +22,8 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 | 10 | Part definitions hardcoded in `scripts/parts.gd` | **Gap** | Before campaign and technology content |
 | 11 | Large coordinator scripts (`main.gd`, `world_view.gd`) | Conditional | Split during steps 2–3, not later |
 | 12 | Tests, perf lab and git practice | OK | Tag releases from now on |
+| 13 | Engine bug: preload order breaks planet resources | Worked around | Fixed by the 4.8 upgrade |
+| 14 | Hidden single-planet values found in step 2 | Gap | Step 3 |
 
 ## 1. Engine and version
 
@@ -29,7 +31,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 
 **Fits the vision:** yes. 4.6 and 4.7 improve Jolt physics, Forward+/Mobile rendering, animation and the editor, none of which the game uses ([4.6](https://godotengine.org/releases/4.6/), [4.7](https://godotengine.org/releases/4.7/)). The local `SurfaceTool` patch is still needed on 4.7.2.
 
-**Decision:** stay on 4.5.1; upgrade once to 4.8.x (ideally 4.8.1) after it is stable. Upgrade between roadmap steps, never during a refactor, so engine changes and code changes are never mixed. An upgrade means: rebuild editor and templates, re-apply patches, re-bake every planet (the version is in the bake signature), run the test suite and perf lab, and check custom shaders visually.
+**Decision:** stay on 4.5.1; upgrade once to 4.8.x (ideally 4.8.1) after it is stable. The upgrade also fixes the preload-order engine bug in entry 13. Upgrade between roadmap steps, never during a refactor, so engine changes and code changes are never mixed. An upgrade means: rebuild editor and templates, re-apply patches, re-bake every planet (the version is in the bake signature), run the test suite and perf lab, and check custom shaders visually.
 
 `project.godot` still lists the feature tag `"4.4"` because no 4.5 editor has re-saved it. That is harmless; it updates on the next editor save.
 
@@ -122,6 +124,23 @@ The sun's physical radius is 900 km (`SolarBody.RADIUS`), 1.5 times Verdant's. F
 **Today:** 83 checks in `tools/check.sh` with isolated saves, a repeatable perf lab with saved baselines, and a separate double-precision engine build with scripts. Git history starts on 2026-10-09; versions 0.1–0.3.26 exist only as old exports, which have been deleted except 0.3.26.
 
 **Decision:** tag each release (`git tag v0.3.27`) so any version can be rebuilt from source. Consider CI later.
+
+## 13. Planet resources and script loading
+
+**The bug:** if a script preloads a planet `.tres`, and a script that preloads it then preloads `scripts/planet_definition.gd`, the preloaded planet resource loses its script variables (`radius` and the rest disappear) while the script object itself stays intact. Investigated 2026-10-09:
+
+- It happens for every planet file (Verdant, the Mun, Ochre), and only when the `.tres` is preloaded inside another script; preloading any other script afterwards is harmless.
+- It reproduces in a minimal clean project with a two-line custom resource, on both our double build and the official 4.5.1 download. It is a **Godot engine bug**, not project code, and the missing script `uid` in planet files is unrelated (it reproduces with and without one).
+- Likely upstream issue: [godot#87019](https://github.com/godotengine/godot/issues/87019) ("Error accessing custom resource caused by order of preload", targeted for 4.6); related: [#98551](https://github.com/godotengine/godot/issues/98551), [#110394](https://github.com/godotengine/godot/issues/110394).
+- **Fixed in official Godot 4.7.2**: the same minimal project passes there.
+
+**Decision:** until the 4.8 upgrade, no script preloads a planet `.tres`. `BodyRegistry` and `PlanetSurface.HOME` load at runtime instead (`HOME` became a static property using `load()`). The upgrade removes the underlying bug; this is one concrete reason for it (entry 1).
+
+## 14. Hidden single-planet values found in step 2
+
+- `MIN_RAIL_WARP_ALTITUDE = 90000` (`flight_model.gd`) is the home atmosphere height, applied as a time-warp floor to every body, the Mun included. Replace with per-body logic in step 3.
+- Moon orbital periods (`orbit_period_days`) are stored data, not derived from the parent's gravitational parameter and the orbit distance, so changing either leaves a physically wrong period unless the editor recomputes it. Derive them in step 3.
+- `world_view.gd`'s `SOLAR_DAY_SECONDS = 480` and `_solar_time` are written but never read. Remove when that file is split.
 
 ## Decisions to make before step 2
 

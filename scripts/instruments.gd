@@ -11,7 +11,8 @@ var legend_only := false
 const MINT := Color("7ce5c0")
 const DIM := Color("78949b")
 const Physics = preload("res://scripts/physics_math.gd")
-const CENTER := Physics.PLANET_CENTER
+static var CENTER: Vector3:
+	get: return Physics.PLANET_CENTER
 const LEGEND := [
 	["prograde", "PROGRADE"],
 	["retrograde", "RETRO"],

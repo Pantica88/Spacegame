@@ -16,7 +16,7 @@ func _init() -> void:
 		var density := Flight.air_density_at(float(altitude))
 		check(density >= 0.0 and density <= previous_density + 0.000001, "Density decreases continuously with altitude")
 		previous_density = density
-	check(Flight.air_density_at(90000.0) == 0.0, "Atmospheric boundary is vacuum")
+	check(Flight.air_density_at(Flight.ATMOSPHERE_HEIGHT) == 0.0, "Atmospheric boundary is vacuum")
 	check(Flight.air_density_at(-100.0) == Flight.air_density_at(0.0), "Below datum uses surface density")
 	check(is_equal_approx(Flight._air_density_profile(10000.0, 2.45, 45000.0), 2.0 * Flight.air_density_at(20000.0)), "Custom density and atmosphere height scale the reference column")
 	var velocity := Vector3(30, 200, 0)

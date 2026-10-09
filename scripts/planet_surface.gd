@@ -1,24 +1,28 @@
 extends RefCounted
-## Shared home-world instance: renderer, flight, debris and map query the same mesh.
+## Shared home-world terrain: renderer, flight, debris and map query the same
+## mesh. The home world itself is BodyRegistry.home(); this is its terrain view.
 const Terrain = preload("res://scripts/planet_terrain.gd")
-const PlanetList = preload("res://scripts/planet_list.gd")
-const HOME_PATH := "res://assets/planets/verdant.tres"
-const HOME = preload("res://assets/planets/verdant.tres")
-const RADIUS := 600000.0
+const Bodies = preload("res://scripts/body_registry.gd")
+const HOME_PATH := Bodies.HOME_PATH
+## The bundled definition, as shipped (ignores the player's saved override).
+## Loaded, not preloaded: in Godot 4.5 a preloaded planet .tres loses its script
+## variables if planet_definition.gd is preloaded afterwards (engine bug, fixed in
+## 4.7; docs/FOUNDATION_REVIEW.md entry 13).
+static var HOME: Resource:
+	get: return load(HOME_PATH)
 const LAUNCH_BASIS := Terrain.LAUNCH_BASIS
-const LAUNCH_RADIAL := Terrain.LAUNCH_DIRECTION * RADIUS
-static var _home: RefCounted
+static var RADIUS: float:
+	get: return Bodies.home().radius
+static var LAUNCH_RADIAL: Vector3:
+	get: return Terrain.LAUNCH_DIRECTION * RADIUS
 
 static func home() -> RefCounted:
-	if _home == null:
-		var saved := PlanetList.load_planet(HOME_PATH)
-		_home = Terrain.new(saved if saved != null else HOME)
-	return _home
+	return Bodies.home().terrain
 
+## Rebuild the body registry, optionally with replacement home settings.
 static func reset_home(settings: Resource = null) -> RefCounted:
-	var selected := settings if settings != null else PlanetList.load_planet(HOME_PATH)
-	_home = Terrain.new(selected if selected != null else HOME)
-	return _home
+	Bodies.rebuild(settings)
+	return home()
 
 static func build_mesh() -> ArrayMesh:
 	return home().build()

@@ -28,8 +28,8 @@ func run() -> void:
 	assert(bool(world._planet.material_override.get_shader_parameter("distant_surface_smoothing_enabled")), "Only the home planet uses distant surface smoothing")
 	var time := 12345.0
 	var offset := World.SolarBody.moon_offset(home.moons[0], time)
-	var position: Vector3 = Vector3(0, -600000, 0) + offset + Vector3(0.4, 0.3, 1.0).normalized() * home.moons[0].radius * 5.0
-	var state := {"position": position, "altitude": position.distance_to(Vector3(0, -600000, 0)) - 600000.0, "simulation_time": time, "time": 0.0}
+	var position: Vector3 = Flight.PLANET_CENTER + offset + Vector3(0.4, 0.3, 1.0).normalized() * home.moons[0].radius * 5.0
+	var state := {"position": position, "altitude": position.distance_to(Flight.PLANET_CENTER) - Flight.PLANET_RADIUS, "simulation_time": time, "time": 0.0}
 	world.sync_flight(state, 0.0)
 	assert((moon.position - world._planet.position).is_equal_approx(offset), "Flight moon uses the saved orbit and rebases with the craft")
 	assert(world.camera.far > world.camera.position.distance_to(world._planet.position) + home.radius, "Planet remains fully inside the far plane at moon distances")
@@ -51,7 +51,7 @@ func run() -> void:
 	assert(Vector3(map.bodies[moon_index].material_override.get_shader_parameter("eclipse_center_km")).is_equal_approx(-offset * 0.001), "Map eclipse uses the same physical distances as flight")
 	assert(is_equal_approx(float(moon.material_override.get_shader_parameter("eclipse_sun_radius_km")), World.SolarBody.RADIUS * 0.001), "Flight eclipse uses the finite solar disk")
 	assert(is_equal_approx(float(map.bodies[moon_index].material_override.get_shader_parameter("eclipse_sun_radius_km")), World.SolarBody.RADIUS * 0.001), "Map and flight share the solar disk")
-	assert(Vector3(moon.material_override.get_shader_parameter("sun_direction")).is_equal_approx((World.SolarBody.POSITION - (Vector3(0, -600000, 0) + offset)).normalized()), "Moon sunlight stays in the physical frame after rebasing and rotation")
+	assert(Vector3(moon.material_override.get_shader_parameter("sun_direction")).is_equal_approx((World.SolarBody.POSITION - (Flight.PLANET_CENTER + offset)).normalized()), "Moon sunlight stays in the physical frame after rebasing and rotation")
 	world.camera.look_at(moon.position, Vector3.UP)
 	world._update_atmosphere()
 	if DisplayServer.get_name() != "headless":
@@ -75,7 +75,7 @@ func run() -> void:
 	var landing_up := Vector3(0.4, 0.3, 1.0).normalized()
 	var landing_contact: Dictionary = moon_terrain.contact(landing_up, time)
 	var landing_radial: Vector3 = landing_up * float(landing_contact.radius)
-	var moon_center := Vector3(0, -600000, 0) + offset
+	var moon_center := Flight.PLANET_CENTER + offset
 	var orbit_velocity := (World.SolarBody.moon_offset(home.moons[0], time + 1.0) - World.SolarBody.moon_offset(home.moons[0], time - 1.0)) * 0.5
 	var gravity_probe := Flight.new()
 	gravity_probe.ignite()

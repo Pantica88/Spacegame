@@ -647,7 +647,7 @@ func _update_camera() -> void:
 
 func _zoom(amount: float) -> void:
 	var previous_resolution := _adaptive_resolution()
-	var radius := float(settings.radius) if settings != null else 600000.0
+	var radius := float(settings.radius) if settings != null else PlanetSurface.RADIUS
 	distance = clampf(distance * exp(amount * 0.12), radius * 1.35, radius * 5.0)
 	_update_camera()
 	if detail_picker != null and detail_picker.selected == 0 and previous_resolution != _adaptive_resolution():

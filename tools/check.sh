@@ -118,6 +118,7 @@ run_check workshop_camera --headless --script res://tests/test_workshop_camera.g
 run_check builder --headless --script res://tests/test_builder.gd
 run_check rollout --headless --script res://tests/test_rollout.gd
 run_check sparrow_asset --headless --script res://tests/test_sparrow_asset.gd
+run_check body_registry --headless --script res://tests/test_body_registry.gd
 run_check planet --headless --script res://tests/test_planet_surface.gd
 run_check planet_detail --headless --script res://tests/test_planet_detail.gd
 run_check planet_preview --headless --script res://tests/test_planet_preview.gd

@@ -9,11 +9,16 @@ const BodyCollisions = preload("res://scripts/body_collisions.gd")
 const Hydrostatics = preload("res://scripts/hydrostatics.gd")
 const Parts = preload("res://scripts/parts.gd")
 const Physics = preload("res://scripts/physics_math.gd")
-const PLANET_RADIUS: float = Physics.PLANET_RADIUS
-const PLANET_CENTER: Vector3 = Physics.PLANET_CENTER
-const SURFACE_GRAVITY: float = Physics.SURFACE_GRAVITY
-const MU: float = Physics.MU
-const ATMOSPHERE_HEIGHT: float = Physics.ATMOSPHERE_HEIGHT
+static var PLANET_RADIUS: float:
+	get: return Physics.PLANET_RADIUS
+static var PLANET_CENTER: Vector3:
+	get: return Physics.PLANET_CENTER
+static var SURFACE_GRAVITY: float:
+	get: return Physics.SURFACE_GRAVITY
+static var MU: float:
+	get: return Physics.MU
+static var ATMOSPHERE_HEIGHT: float:
+	get: return Physics.ATMOSPHERE_HEIGHT
 const MAX_STEP: float = 1.0 / 60.0
 const SIDE_DRAG_RESPONSE_SECONDS := 0.5
 const MIN_RAIL_WARP_ALTITUDE := 90000.0

@@ -1,9 +1,13 @@
 extends RefCounted
 ## Solar dimensions in metres, in the flight simulation frame.
+const Physics = preload("res://scripts/physics_math.gd")
 # The 900 km sun is 1.5 times the current 600 km home planet's radius.
 const RADIUS := 900000.0
 const DISTANCE := 13599840256.0
-const POSITION := Vector3(0.0, -600000.0, 0.0) + Vector3(-0.4750648667, 0.443393875, 0.7601037833) * DISTANCE
+## Direction from the home planet's centre to the sun.
+const DIRECTION := Vector3(-0.4750648667, 0.443393875, 0.7601037833)
+static var POSITION: Vector3:
+	get: return Physics.PLANET_CENTER + DIRECTION * DISTANCE
 
 static func segment_hit(start: Vector3, finish: Vector3) -> float:
 	var offset := start - POSITION
@@ -19,7 +23,7 @@ static func segment_hit(start: Vector3, finish: Vector3) -> float:
 
 ## Parent-relative moon orbit, in metres in the shared flight frame.
 static func moon_offset(definition: Resource, time: float) -> Vector3:
-	var radial := -(POSITION - Vector3(0.0, -600000.0, 0.0)).normalized()
+	var radial := -DIRECTION.normalized()
 	var tangent := radial.cross(Vector3.UP).normalized()
 	var phase := TAU * (float(definition.orbit_phase) + time / (86400.0 * maxf(0.001, float(definition.orbit_period_days))))
 	return (radial * cos(phase) + tangent * sin(phase)) * float(definition.moon_orbit_distance_km) * 1000.0

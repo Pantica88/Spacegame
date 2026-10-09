@@ -399,7 +399,7 @@ func _test_orbital_math() -> void:
 	_check(hyperbolic.eccentricity > 1.0 and hyperbolic.semi_major_axis < 0.0 and not hyperbolic.bound_orbit, "Hyperbolic orbit has eccentricity above one and negative semimajor axis")
 	# Known ellipse, initialized at periapsis with speed from vis-viva.
 	var peri_radius := radius
-	var apo_radius := radius + 90000.0
+	var apo_radius := radius + Physics.ATMOSPHERE_HEIGHT
 	var semimajor := (peri_radius + apo_radius) * 0.5
 	var peri_velocity := Vector3(sqrt(Physics.MU * (2.0 / peri_radius - 1.0 / semimajor)), 0, 0)
 	var ellipse := Physics.orbital_elements(Vector3(0, peri_radius, 0), peri_velocity)

@@ -2,14 +2,25 @@ extends RefCounted
 ## SI units; planet-centered inertial vectors unless explicitly stated otherwise.
 ## Central gravity uses a reference sphere; rotating terrain contacts live in PlanetTerrain.
 
+const Bodies = preload("res://scripts/body_registry.gd")
+
+## Engine Isp convention, not a planet property.
 const STANDARD_GRAVITY: float = 9.80665
-const PLANET_RADIUS: float = 600000.0
-const PLANET_CENTER := Vector3(0, -PLANET_RADIUS, 0)
-const GRAVITATIONAL_CONSTANT: float = 6.67430e-11
-const PLANET_MASS: float = 5.292e22
-const SURFACE_GRAVITY: float = GRAVITATIONAL_CONSTANT * PLANET_MASS / (PLANET_RADIUS * PLANET_RADIUS)
-const MU: float = SURFACE_GRAVITY * PLANET_RADIUS * PLANET_RADIUS
-const ATMOSPHERE_HEIGHT: float = 90000.0
+
+# Home-world values, read from its PlanetDefinition through the body registry so
+# the .tres file is the single source of truth. The launch pad is the world
+# origin, so the home planet's centre lies one radius below it. Roadmap step 3
+# replaces "the home world" with each vessel's own body.
+static var PLANET_RADIUS: float:
+	get: return Bodies.home().radius
+static var PLANET_CENTER: Vector3:
+	get: return Vector3(0, -Bodies.home().radius, 0)
+static var SURFACE_GRAVITY: float:
+	get: return Bodies.home().surface_gravity
+static var MU: float:
+	get: return Bodies.home().mu
+static var ATMOSPHERE_HEIGHT: float:
+	get: return Bodies.home().atmosphere_height
 
 
 static func body_drag_acceleration(air_velocity: Vector3, axis: Vector3, density: float, mass: float, frontal_area: float, side_area: float, dt: float, side_exposure: float = -1.0) -> Vector3:

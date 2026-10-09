@@ -17,14 +17,14 @@ func _run() -> void:
 		if terrain.elevation(d) < -200.0:
 			direction = d
 			break
-	var position := Vector3(0,-600000,0) + direction * 600003.0
+	var position := Vector3(0,-Surface.RADIUS,0) + direction * (Surface.RADIUS + 3.0)
 	var output := OS.get_environment("OCEAN_CAPTURE_DIR")
 	if output.is_empty(): output = "/tmp/aphelion-ocean-distance"
 	DirAccess.make_dir_recursive_absolute(output)
 	for view in ["low", "overhead", "mid", "high", "handoff", "orbit"]:
 		world._pitch = 0.05 if view == "low" else 0.95
 		var altitude: float = {"low": 3.0, "overhead": 3.0, "mid": 500.0, "high": 6000.0, "handoff": 22000.0, "orbit": 40000.0}[view]
-		position = Vector3(0,-600000,0) + direction * (600000.0 + altitude)
+		position = Vector3(0,-Surface.RADIUS,0) + direction * (Surface.RADIUS + altitude)
 		world._distance = 25.0 if view == "low" else 90.0
 		world.sync_flight({"position":position,"altitude":altitude,"orientation":Basis(Quaternion(Vector3.UP,direction)),"engine_on":false,"fuel":0.0,"boosters_attached":false,"capsule_only":true,"chute_deployed":false},0.0)
 		world.set_sun_direction(Vector3(0.5,0.65,0.55).normalized())

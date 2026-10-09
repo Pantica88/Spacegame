@@ -2,7 +2,7 @@ extends SceneTree
 ## Requires a graphical display. Run tools/run.sh --script tests/test_rendering.gd.
 ## Captures go to /tmp/aphelion-render-regression (or the OS temp directory).
 const World = preload("res://scripts/world_view.gd")
-const RADIUS := 600000.0
+var RADIUS: float = World.PLANET_RADIUS
 var world: Node3D
 var failures: Array[String] = []
 var output_dir := ""

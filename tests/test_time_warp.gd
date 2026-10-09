@@ -62,7 +62,7 @@ func run() -> void:
 	assert(game.flight.warp_limit() == 1.0, "Rail warp stays unavailable below 90000 m")
 	game._enforce_warp_limit()
 	assert(game.warp_arrows[4].disabled, "5x arrow stays disabled below 90000 m")
-	game.flight.state.position = game.flight.PLANET_CENTER + Vector3.UP * (game.flight.PLANET_RADIUS + 90000.0)
+	game.flight.state.position = game.flight.PLANET_CENTER + Vector3.UP * (game.flight.PLANET_RADIUS + game.flight.ATMOSPHERE_HEIGHT)
 	assert(game.flight.warp_limit() >= 5.0, "Rail warp is available at 90000 m")
 	game._enforce_warp_limit()
 	assert(not game.warp_arrows[4].disabled, "5x arrow enables at 90000 m")
