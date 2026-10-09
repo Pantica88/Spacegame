@@ -104,7 +104,7 @@ Everything for this step lives in `~/godot-double/`:
 - [x] Like-for-like result, `A-official-2` vs `C-double-rebaked` (same code, fresh bakes, valid, 1280×720): **GPU unchanged (±1%)**, render CPU +1–4%, physics CPU +6–16% (≤0.23 ms), frame mean +0.2–7.2% (about +3.5%), frame p95 +3–8% (0.4–1.0 ms), startup +0.6 s (9.3 s vs 8.7 s). The worst scenario (staging p95 14.1 ms) stays under 16.7 ms. Part of the CPU cost may be the missing LTO (`lto=none`) rather than double precision; official builds use LTO. Optional: test `lto=full` for shipping templates.
 - Game settings (2026-10-09): removed the 120 FPS cap and enabled VSync (Godot default). The perf lab and benchmarks disable VSync themselves.
 - [ ] Point `export_presets.cfg` at the double templates and export
-- [x] Performance lab baseline on the double build: `C-double-rebaked` is the first valid run with the double engine and current fixtures, so it is the saved baseline for this configuration
+- [x] Performance lab baseline on the double build: `C-double-rebaked` set explicitly with `./perf.sh baseline C-double-rebaked` (B, with stale bakes, had become the automatic baseline)
 
 ## 2. Per-body definitions
 
