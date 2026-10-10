@@ -1,19 +1,58 @@
 extends MeshInstance3D
 ## Composites procedural or painted cloud volumes. The volume is integrated in
-## a reduced-resolution offscreen pass and upsampled here; only pixels whose
-## nearby geometry sits inside the cloud shell integrate at full resolution.
+## an offscreen pass, at reduced resolution and upsampled here, or with
+## full_resolution at screen resolution; only pixels whose nearby geometry sits
+## inside the cloud shell integrate in the composite itself.
 const CLOUD_SHADER = preload("res://assets/shaders/clouds.gdshader")
 const LOWRES_SHADER = preload("res://assets/shaders/clouds_lowres.gdshader")
 const RESOLVE_SHADER = preload("res://assets/shaders/clouds_resolve.gdshader")
+const CloudCompute = preload("res://scripts/cloud_compute.gd")
 ## Order in which each 2x2 block's pixels are marched; every pixel is fresh at
 ## least once every four frames.
 const TEMPORAL_OFFSETS := [Vector2(0, 0), Vector2(1, 1), Vector2(1, 0), Vector2(0, 1)]
+## Full-resolution reconstruction marches one pixel of every 4x4 block per
+## frame, or of every 8x8 block where altitude scaling would quarter the
+## reduced pass, visiting each block in Bayer-matrix order so consecutive
+## frames spread evenly.
+const FULL_RES_GRID := 4
+const FULL_RES_HIGH_GRID := 8
+static var _bayer_orders := {}
+## How far a still view's history may stray outside the fresh samples around
+## it (encoded units), so detail finer than the fresh grid survives.
+const FULL_RES_HISTORY_TOLERANCE := 0.25
 ## Rotation between frames beyond which reprojected history is discarded.
 const TEMPORAL_MAX_TURN := deg_to_rad(15.0)
 static var _bounded_shaders := {}
 ## Fraction of the view resolution integrated offscreen. 1.0 integrates every
 ## pixel in the composite instead.
 var resolution_scale := 0.5
+## Prototype of the cloud renderer rebuild (docs/MULTI_PLANET_ROADMAP.md):
+## marches one in sixteen screen pixels per frame and rebuilds the rest from
+## reprojected history at screen resolution, instead of upsampling a reduced
+## target. Overrides resolution_scale and altitude scaling.
+var full_resolution := false
+## The rebuild's compute-shader path: marches as full_resolution does, but in
+## compute passes inside the frame that also record each pixel's cloud
+## distance, so history reprojects correctly while the camera moves.
+## Overrides full_resolution.
+var compute := false
+## Slack of the compute resolve's history clamp while the sun or weather
+## changes; a steady view clamps only by COMPUTE_STEADY_TOLERANCE.
+var compute_history_tolerance := FULL_RES_HISTORY_TOLERANCE
+## Fresh samples lie up to 8 pixels apart, so detail between them, sharp at the
+## horizon, falls outside their range. With nothing changing, history is exact
+## and only motion (judged per pixel in the resolve) needs the clamp.
+const COMPUTE_STEADY_TOLERANCE := 1.0
+var _compute: CloudCompute
+var _compositor := Compositor.new()
+var _compute_camera: Camera3D
+var _compute_process_frame := -1
+var _compute_frame := 0
+var _compute_used := false
+var _compute_valid := false
+# This frame's and the previous frame's camera and cloud frame, for reprojection.
+var _compute_state := {}
+var _compute_previous := {}
 ## Seen from well above the shell, clouds are soft and fill the screen while no
 ## ray saturates, so the offscreen pass steps down to these scales (metres above
 ## the shell top). Fixed steps avoid reallocating the target every frame.
@@ -35,6 +74,9 @@ var _frame_size := Vector2i.ZERO
 var _frame_used := false
 var _frame_planet := Vector3.ZERO
 var _previous_planet := Vector3.ZERO
+# Projection terms that set view-ray directions; near and far planes do not.
+var _frame_frustum := PackedFloat64Array()
+var _previous_frustum := PackedFloat64Array()
 ## Benchmarks and comparisons disable this to pin resolution_scale.
 var altitude_scaling := true
 var _altitude_scale := 0.5
@@ -218,9 +260,17 @@ func _update_altitude_scale(above_top: float) -> void:
 	var boundary: float = ALTITUDE_SCALES[index - 1].x if candidate < _altitude_scale else ALTITUDE_SCALES[index].x
 	if absf(above_top - boundary) >= ALTITUDE_SCALE_HYSTERESIS: _altitude_scale = candidate
 
+## Whether the volume integrates offscreen rather than in the composite.
+func integrates_offscreen() -> bool:
+	return not compute and (full_resolution or effective_scale() < 1.0)
+
 ## The offscreen march viewport, for tools that measure its render time.
 func lowres_viewport() -> SubViewport:
 	return _lowres
+
+## The two temporal resolve viewports; one renders each frame.
+func resolve_viewports() -> Array[SubViewport]:
+	return _resolve
 
 ## Keeps the offscreen pass sized to the view and its camera on the view's
 ## pose. Runs after the scene has placed its camera for this frame; the
@@ -228,23 +278,32 @@ func lowres_viewport() -> SubViewport:
 func _sync_lowres() -> void:
 	var camera: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
 	# The map disables the host's 3D pass; the offscreen clouds would go unseen.
-	var active := effective_scale() < 1.0 and is_visible_in_tree() and is_instance_valid(camera) and not get_viewport().disable_3d
+	var drawn := is_visible_in_tree() and is_instance_valid(camera) and not get_viewport().disable_3d
+	var active := integrates_offscreen() and drawn
 	_lowres.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
 	var composite := material_override as ShaderMaterial
-	composite.set_shader_parameter("lowres_enabled", active)
+	var computed := compute and drawn and _compute_effect() != null
+	composite.set_shader_parameter("lowres_enabled", active or computed)
+	composite.set_shader_parameter("lowres_linear", computed)
 	if not active or not temporal:
 		for target in _resolve: target.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		_frame_used = false
-	if not active:
+	_attach_compute(camera if computed else null)
+	if not active and not computed:
 		return
 	var view := get_viewport()
 	var pixels := Vector2(view.get("size")) * float(view.scaling_3d_scale)
-	var size := Vector2i((pixels * effective_scale()).round()).max(Vector2i.ONE)
+	var size := Vector2i((pixels * (1.0 if full_resolution or computed else effective_scale())).round()).max(Vector2i.ONE)
+	composite.set_shader_parameter("lowres_exact", full_resolution or computed)
+	if computed:
+		_sync_compute(size, camera)
+		return
 	if temporal:
-		# Even, so the half-size march target spans exactly the same frustum.
-		size = Vector2i(size.x + size.x % 2, size.y + size.y % 2).max(Vector2i(2, 2))
-		_sync_temporal(size, camera)
-		size /= 2
+		var grid := 2
+		if full_resolution:
+			grid = FULL_RES_HIGH_GRID if altitude_scaling and _altitude_scale <= 0.25 else FULL_RES_GRID
+		_sync_temporal(size, camera, grid)
+		size = (size + Vector2i.ONE * (grid - 1)) / grid
 	else:
 		_lowres_material.set_shader_parameter("temporal_march", false)
 		composite.set_shader_parameter("cloud_lowres", _lowres.get_texture())
@@ -261,7 +320,7 @@ func _sync_lowres() -> void:
 	_lowres_camera.v_offset = camera.v_offset
 	_lowres_camera.global_transform = camera.global_transform
 
-func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
+func _sync_temporal(size: Vector2i, camera: Camera3D, grid: int) -> void:
 	# This runs several times a frame; advance the cycle once per drawn frame,
 	# treating the last pose of the previous frame as its rendered pose.
 	var process_frame := Engine.get_process_frames()
@@ -272,8 +331,17 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 		_previous_basis = _frame_basis
 		_previous_size = _frame_size
 		_previous_planet = _frame_planet
+		_previous_frustum = _frame_frustum
 	var current := _temporal_frame % 2
-	var offset: Vector2 = TEMPORAL_OFFSETS[_temporal_frame % TEMPORAL_OFFSETS.size()]
+	var offsets: Array = _bayer_order(grid) if full_resolution else TEMPORAL_OFFSETS
+	var offset: Vector2 = offsets[_temporal_frame % offsets.size()]
+	var projection := camera.get_camera_projection()
+	# Shaders receive the RenderingDevice renderers' projection, which flips Y
+	# (and remaps depth) for Vulkan clip space.
+	if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+		projection = Projection.create_depth_correction(true) * projection
+	# The flight cameras move their far plane with altitude every frame.
+	var frustum := PackedFloat64Array([projection.x.x, projection.y.y, projection.z.x, projection.z.y, projection.w.w])
 	var basis := camera.global_basis.orthonormalized()
 	# History survives ordinary turns; resizes, cuts and teleports refill it.
 	var turn := (_previous_basis.inverse() * basis).get_rotation_quaternion().get_angle()
@@ -282,10 +350,13 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	var planet_value: Variant = (material_override as ShaderMaterial).get_shader_parameter("camera_planet_km")
 	var planet: Vector3 = planet_value if planet_value is Vector3 else Vector3.ZERO
 	var moved_km := planet.distance_to(_previous_planet)
-	var valid := _temporal_valid and size == _previous_size and turn < TEMPORAL_MAX_TURN and moved_km < 5.0
+	var valid := _temporal_valid and size == _previous_size and turn < TEMPORAL_MAX_TURN and moved_km < 5.0 \
+		and frustum == _previous_frustum
 	_lowres_material.set_shader_parameter("temporal_march", true)
+	_lowres_material.set_shader_parameter("temporal_grid", grid)
 	_lowres_material.set_shader_parameter("temporal_offset", offset)
 	_lowres_material.set_shader_parameter("temporal_target_size", Vector2(size))
+	_lowres_material.set_shader_parameter("view_inv_projection", projection.inverse())
 	var target := _resolve[current]
 	if target.size != size:
 		target.size = size
@@ -293,6 +364,17 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	resolve_material.set_shader_parameter("fresh_offset", offset)
 	resolve_material.set_shader_parameter("history_valid", valid)
 	resolve_material.set_shader_parameter("previous_view_rotation", _previous_basis.inverse())
+	resolve_material.set_shader_parameter("grid", grid)
+	resolve_material.set_shader_parameter("bicubic_history", full_resolution)
+	resolve_material.set_shader_parameter("history_tolerance", FULL_RES_HISTORY_TOLERANCE if full_resolution else 0.0)
+	# The reduced pass treats clouds as infinitely far; full resolution also
+	# follows the camera's translation, at the depth of the cloud shell.
+	resolve_material.set_shader_parameter("camera_motion_km", planet - _previous_planet if full_resolution else Vector3.ZERO)
+	resolve_material.set_shader_parameter("camera_planet_km", planet)
+	# Most cloud sits in the low deck; storm towers above it are sparse.
+	var deck_half := _shade_thickness * _shade_deck * 0.5
+	resolve_material.set_shader_parameter("reprojection_radius_km", _shade_bottom + deck_half)
+	resolve_material.set_shader_parameter("reprojection_spread_km", deck_half)
 	_mirror_camera(_resolve_cameras[current], camera)
 	target.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_resolve[1 - current].render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -300,7 +382,124 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	_frame_basis = basis
 	_frame_size = size
 	_frame_planet = planet
+	_frame_frustum = frustum
 	_frame_used = true
+
+## Pixels of a size x size block (a power of two) in the order of their
+## Bayer-matrix values.
+static func _bayer_order(size: int) -> Array:
+	if not _bayer_orders.has(size):
+		var matrix := [[0]]
+		while matrix.size() < size:
+			var n: int = matrix.size()
+			var next := []
+			for y in range(n * 2):
+				var row := []
+				for x in range(n * 2):
+					var quadrant: int = [0, 2, 3, 1][(y / n) * 2 + x / n]
+					row.append(4 * matrix[y % n][x % n] + quadrant)
+				next.append(row)
+			matrix = next
+		var order := []
+		order.resize(size * size)
+		for y in range(size):
+			for x in range(size):
+				order[matrix[y][x]] = Vector2(x, y)
+		_bayer_orders[size] = order
+	return _bayer_orders[size]
+
+## The compute passes, compiled on first use; null where they cannot run.
+func _compute_effect() -> CloudCompute:
+	if _compute == null:
+		_compute = CloudCompute.new()
+		_compositor.compositor_effects = [_compute]
+	return _compute if _compute.compiled else null
+
+## Runs the compute passes for this camera only, or for none.
+func _attach_compute(camera: Camera3D) -> void:
+	if camera == _compute_camera:
+		return
+	if is_instance_valid(_compute_camera) and _compute_camera.compositor == _compositor:
+		_compute_camera.compositor = null
+	_compute_camera = camera
+	_compute_used = false
+	if camera == null:
+		return
+	if camera.compositor != null and camera.compositor != _compositor:
+		push_warning("Camera already has a compositor; compute clouds are off.")
+		_compute_camera = null
+		return
+	camera.compositor = _compositor
+
+func _sync_compute(size: Vector2i, camera: Camera3D) -> void:
+	# Runs several times a frame, like _sync_temporal: the last call of a
+	# frame describes what was rendered.
+	var process_frame := Engine.get_process_frames()
+	if process_frame != _compute_process_frame:
+		_compute_process_frame = process_frame
+		_compute_frame += 1
+		_compute_valid = _compute_used
+		_compute_previous = _compute_state
+	var composite := material_override as ShaderMaterial
+	var grid := FULL_RES_HIGH_GRID if altitude_scaling and _altitude_scale <= 0.25 else FULL_RES_GRID
+	var offsets := _bayer_order(grid)
+	var projection := camera.get_camera_projection()
+	if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+		projection = Projection.create_depth_correction(true) * projection
+	var planet_value: Variant = composite.get_shader_parameter("camera_planet_km")
+	var to_local_value: Variant = composite.get_shader_parameter("cloud_world_to_local")
+	var sun_value: Variant = composite.get_shader_parameter("sun_direction")
+	var evolution_value: Variant = composite.get_shader_parameter("cloud_evolution_offset")
+	var state := {
+		"basis": camera.global_basis.orthonormalized(),
+		"projection": projection,
+		"frustum": PackedFloat64Array([projection.x.x, projection.y.y, projection.z.x, projection.z.y, projection.w.w]),
+		"planet": planet_value if planet_value is Vector3 else Vector3.ZERO,
+		"to_local": to_local_value if to_local_value is Basis else Basis.IDENTITY,
+		"sun": sun_value if sun_value is Vector3 else Vector3.UP,
+		"evolution": evolution_value if evolution_value is Vector3 else Vector3.ZERO,
+		"size": size,
+	}
+	var previous := _compute_previous if _compute_valid and not _compute_previous.is_empty() else state
+	var previous_basis: Basis = previous.basis
+	var turn := (previous_basis.inverse() * (state.basis as Basis)).get_rotation_quaternion().get_angle()
+	# Reprojection follows the camera and the planet's spin at each pixel's
+	# cloud distance, so only cuts and resizes refill history.
+	var valid: bool = _compute_valid and previous.size == size and previous.frustum == state.frustum \
+		and turn < TEMPORAL_MAX_TURN
+	# Carries a cloud from this frame's world axes to the previous frame's,
+	# following the planet's spin and the wind.
+	var motion: Basis = previous.to_local.transposed() * state.to_local
+	# A moving sun relights and evolving weather reshapes every cloud; history
+	# then needs the clamp to follow. Ordinary day/night motion is far slower.
+	var sun_turn := (previous.sun as Vector3).angle_to(state.sun)
+	var evolved := (previous.evolution as Vector3).distance_to(state.evolution)
+	var changing := maxf(smoothstep(0.0, 0.003, sun_turn), smoothstep(0.0, 0.02, evolved))
+	var values := {}
+	for entry in _compute.volume_parameters():
+		var value: Variant = composite.get_shader_parameter(entry[0])
+		values[entry[0]] = value if value != null else RenderingServer.shader_get_parameter_default(composite.shader.get_rid(), entry[0])
+	values.merge({
+		"frame_inv_projection": projection.inverse(),
+		"frame_view_basis": state.basis,
+		"frame_size": Vector2(size),
+		"frame_grid": float(grid),
+		"frame_offset": offsets[_compute_frame % offsets.size()],
+		"reveal_offset": TEMPORAL_OFFSETS[_compute_frame % TEMPORAL_OFFSETS.size()],
+		"previous_projection": previous.projection,
+		"previous_view_rotation": previous_basis.inverse(),
+		"cloud_motion": motion,
+		"camera_offset_km": motion * (state.planet as Vector3) - (previous.planet as Vector3),
+		"history_valid": valid,
+		"history_tolerance": lerpf(COMPUTE_STEADY_TOLERANCE, compute_history_tolerance, changing),
+	}, true)
+	var textures := {}
+	for name in CloudCompute.SAMPLERS:
+		textures[name] = composite.get_shader_parameter(name)
+	_compute.prepare(size, grid, values, composite.shader == _bounded(CLOUD_SHADER), textures)
+	composite.set_shader_parameter("cloud_lowres", _compute.output)
+	_compute_state = state
+	_compute_used = true
 
 static func _mirror_camera(target: Camera3D, camera: Camera3D) -> void:
 	target.projection = camera.projection

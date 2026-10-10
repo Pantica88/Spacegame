@@ -1415,7 +1415,7 @@ func _smoke_test() -> void:
 	_toggle_map()
 	assert(not world.rendering_suspended and not get_viewport().disable_3d)
 	world._clouds._sync_lowres()
-	var clouds_drawn: bool = world._clouds.effective_scale() < 1.0 and world._clouds.is_visible_in_tree()
+	var clouds_drawn: bool = world._clouds.integrates_offscreen() and world._clouds.is_visible_in_tree()
 	assert((world._clouds.lowres_viewport().render_target_update_mode == SubViewport.UPDATE_ALWAYS) == clouds_drawn)
 	assert(world._planet.position.is_equal_approx(FlightModel.PLANET_CENTER-Vector3(flight.state.position)))
 	_toggle_map()

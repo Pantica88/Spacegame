@@ -50,7 +50,7 @@ func _process(delta: float) -> void:
 	var precise := 0.1 if Input.is_physical_key_pressed(KEY_CTRL) else 1.0
 	hover_position += movement.limit_length() * hover_speed * boost * precise * delta
 	_update_camera()
-	hover_hud.text = "VISUAL HOVER  |  %.0f FPS  |  %.0f m/s  |  altitude %.0f m\nWASD move · Q/E down/up · Hold right mouse to look\nWheel time back/forward · −/= move speed · Shift fast · Ctrl slow\nTime %+.0f s · T reset time · R reset view · H hide HUD · C copy view · K cloud reflections %s · L sky reflection %s · N cloud density %.1f · J cloud shading %s · O ocean colour %s · Esc quit\n%s" % [Engine.get_frames_per_second(), hover_speed * boost * precise, _last_altitude, hover_time, "on" if _reflection_on("cloud_reflection_strength") else "off", "on" if _reflection_on("sky_reflection_strength") else "off", _cloud_density(), CLOUD_SHADINGS[cloud_shading], OCEAN_PRESETS[ocean_preset][0], _view_state()]
+	hover_hud.text = "VISUAL HOVER  |  %.0f FPS  |  %.0f m/s  |  altitude %.0f m\nWASD move · Q/E down/up · Hold right mouse to look\nWheel time back/forward · −/= move speed · Shift fast · Ctrl slow\nTime %+.0f s · T reset time · R reset view · H hide HUD · C copy view · K cloud reflections %s · L sky reflection %s · N cloud density %.1f · J cloud shading %s · O ocean colour %s · G clouds %s · Esc quit\n%s" % [Engine.get_frames_per_second(), hover_speed * boost * precise, _last_altitude, hover_time, "on" if _reflection_on("cloud_reflection_strength") else "off", "on" if _reflection_on("sky_reflection_strength") else "off", _cloud_density(), CLOUD_SHADINGS[cloud_shading], OCEAN_PRESETS[ocean_preset][0], _cloud_mode(), _view_state()]
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -93,11 +93,25 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_J:
 				cloud_shading = (cloud_shading + 1) % CLOUD_SHADINGS.size()
 				_ocean.material().set_shader_parameter("cloud_reflection_shading", cloud_shading)
+			KEY_G:
+				# Cloud renderer rebuild: cycle reduced, full resolution and compute.
+				if _clouds.compute:
+					_clouds.compute = false
+					_clouds.full_resolution = false
+				elif _clouds.full_resolution:
+					_clouds.compute = true
+				else:
+					_clouds.full_resolution = true
 			KEY_O:
 				ocean_preset = (ocean_preset + 1) % OCEAN_PRESETS.size()
 				var preset: Array = OCEAN_PRESETS[ocean_preset]
 				for i in 4:
 					_ocean.material().set_shader_parameter(["albedo", "albedo2", "color_deep", "color_shallow"][i], preset[i + 1])
+
+
+func _cloud_mode() -> String:
+	if _clouds.compute: return "compute"
+	return "full resolution" if _clouds.full_resolution else "reduced"
 
 
 func _reflection_on(parameter: String) -> bool:

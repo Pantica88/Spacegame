@@ -247,8 +247,10 @@ float sun_optical_depth(vec3 point, float height, float top, float bottom, float
 
 // Integrates the volume along a view ray up to clip_distance (km). Returns the
 // final color (cloud light, attenuated and hazed) and its opacity; zero
-// opacity means nothing to draw.
-vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
+// opacity means nothing to draw. depth is the opacity-weighted distance (km)
+// to the cloud seen, or 0 with nothing to draw.
+vec4 integrate_clouds_depth(vec3 ray, float clip_distance, vec2 fragcoord, out float depth) {
+	depth = 0.0;
 	float bottom = cloud_bottom_km();
 	vec4 segments = cloud_ray_segments(ray);
 	float start = segments.x;
@@ -403,9 +405,15 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 	}
 	float opacity = 1.0 - remaining;
 	if (opacity < 0.005) { return vec4(0.0); }
+	depth = weighted_distance / opacity;
 	vec3 transmission;
-	vec3 haze = scatter_air(camera_planet_km, ray, weighted_distance / opacity, transmission);
+	vec3 haze = scatter_air(camera_planet_km, ray, depth, transmission);
 	return vec4(cloud_color / opacity * transmission + haze, opacity);
+}
+
+vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
+	float depth;
+	return integrate_clouds_depth(ray, clip_distance, fragcoord, depth);
 }
 
 vec3 cloud_view_ray(vec2 screen_uv, mat4 inv_projection, mat4 inv_view) {
