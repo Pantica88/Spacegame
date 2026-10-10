@@ -18,7 +18,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 | 6 | Solar system: fixed sun, no heliocentric orbits (sun size decided) | **Gap** | Fold into step 3 |
 | 7 | Planet scale: Verdant 600 km | OK | — |
 | 8 | Time: one float (64-bit) simulation clock | OK | Make it universal in step 6 |
-| 9 | Saves: versioned, but a version change discards the save | **Gap** | Before any persistent world (step 6) |
+| 9 | Saves: sequential migrations with original-file backups | OK | Add a migration and historical fixture for each version bump |
 | 10 | Part definitions hardcoded in `scripts/parts.gd` | **Gap** | Before campaign and technology content |
 | 11 | Large coordinator scripts (`main.gd`, `world_view.gd`) | Conditional | Split during steps 2–3, not later |
 | 12 | Tests, perf lab and git practice | OK | Tag releases from now on |
@@ -104,11 +104,13 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 
 ## 9. Save system
 
-**Today:** `scripts/profile.gd` saves JSON with a `version` field and writes through a temporary file (safe against crashes mid-write). When the stored version differs from `SAVE_VERSION`, it reports "Saved profile version is unsupported. Starting with a fresh design." and discards the save. In-flight state is not saved.
+**Today:** `scripts/profile.gd` loads versioned JSON through sequential, one-version migration functions. `SAVE_VERSION` is now 2: `_migrate_v1_to_v2` materializes an assembly for legacy scalar craft settings and preserves existing assemblies, progress and sound settings. Migrated profiles are saved automatically after copying the exact original file to `profile.json.bak`; writes still use a temporary file followed by rename. Backup or write failures leave the old save intact and permit a later retry. Ordinary saves retain the migration backup. In-flight state is not saved.
 
-**Fits the vision:** not yet. With persistent satellites, stations and colonies, any save-format change would wipe a player's world.
+**Fits the vision:** the migration foundation now supports persistent saves across format changes. Unknown future versions are refused and saving is disabled for that profile instance, including subsequent autosaves, so a newer game's file cannot be overwritten. Missing migration steps also fail closed.
 
-**Decision:** before step 6, add migrations: each version bump ships a function that upgrades the previous format, with a test that loads a saved file from each older version. Keep the safe-write behaviour.
+**History and validation:** `git log -p -- scripts/profile.gd` contains only version 1 (`4e96a89`, initial format; `1082033`, larger save and tank limits). `tests/test_profile_migrations.gd` loads fixed legacy and assembled v1 JSON fixtures, checks preservation of craft, records and settings, automatic persistence, exact backups, current-version reloads, failed-backup/write retries and future-version refusal. It is registered in `tools/check.sh`, which isolates all Godot save storage. Targeted migration tests and all 177 profile persistence checks pass. The full suite was attempted on 2026-10-09; import passed, but gameplay stopped because this checkout lacks the generated Verdant and moon bake resources referenced by `verdant.tres` (before the profile checks ran).
+
+**Decision:** each future `SAVE_VERSION` bump must add its own previous→next migration function, register it in the sequential dispatcher, and retain saved-file fixtures for every earlier format. Keep backup-before-write and temporary-file/rename behaviour. Extend the saved state for persistent vessels and worlds in step 6.
 
 ## 10. Content definitions
 

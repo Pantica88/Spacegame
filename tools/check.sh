@@ -89,6 +89,7 @@ run_check detached_physics --headless --script res://tests/test_detached_physics
 run_check body_collisions --headless --script res://tests/test_body_collisions.gd
 run_check game_loop --headless --script res://tests/test_gameplay.gd
 run_check profile --headless --script res://tests/test_profile.gd
+run_check profile_migrations --headless --script res://tests/test_profile_migrations.gd
 run_check reaction_wheel --headless --script res://tests/test_reaction_wheel.gd
 run_check craft --headless --script res://tests/test_craft.gd
 run_check part_capacity --headless --script res://tests/test_part_capacity.gd
