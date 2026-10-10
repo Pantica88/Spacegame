@@ -2122,8 +2122,8 @@ func _clear_aero_glow() -> void:
 
 
 func _collect_heated_meshes(node: Node) -> void:
-	# Exhaust and parachute fabric are separate effects, not hot hull surfaces.
-	if node.has_meta("engine_exhaust") or node.has_meta("heat_trail") or node.has_meta("shadow_proxy") or node == _parachute_module or node == _chute:
+	# Include the parachute housing and nose cap in the hot hull, but not its fabric.
+	if node.has_meta("engine_exhaust") or node.has_meta("heat_trail") or node.has_meta("shadow_proxy") or node == _chute:
 		return
 	if node is MeshInstance3D:
 		node.set_meta("pre_heat_overlay", node.material_overlay)
