@@ -24,6 +24,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 | 12 | Tests, perf lab and git practice | OK | Tag releases from now on |
 | 13 | Engine bug: preload order breaks planet resources | Worked around | Fixed by the 4.8 upgrade |
 | 14 | Hidden single-planet values found in step 2 | Gap | Step 3 |
+| 15 | Engine bug: negated camera position in double-precision Forward+ shaders | Worked around | Fixed by the 4.8 upgrade (verify) |
 
 ## 1. Engine and version
 
@@ -143,6 +144,14 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 - `MIN_RAIL_WARP_ALTITUDE = 90000` (`flight_model.gd`) is the home atmosphere height, applied as a time-warp floor to every body, the Mun included. Replace with per-body logic in step 3.
 - Moon orbital periods (`orbit_period_days`) are stored data, not derived from the parent's gravitational parameter and the orbit distance, so changing either leaves a physically wrong period unless the editor recomputes it. Derive them in step 3.
 - `world_view.gd`'s `SOLAR_DAY_SECONDS = 480` and `_solar_time` are written but never read. Remove when that file is split.
+
+## 15. Camera position in double-precision Forward+ shaders
+
+**The bug:** in Godot 4.5.1 built with `precision=double`, the RD renderers overwrite the translation of `INV_VIEW_MATRIX` with the *negated* camera origin (`render_scene_data_rd.cpp`, `split_double(-cam_transform.origin.x, &ubo.inv_view_matrix[12], ...)`) for their internal double emulation. Custom shaders reading `INV_VIEW_MATRIX[3]` or `CAMERA_POSITION_WORLD` get a wrong camera position. Godot 4.7.2 stores the precision part separately, which suggests it is fixed upstream (verify on upgrade).
+
+**Effect found:** below about 30 m the ocean's mirrored sky and clouds turned white with black holes (view rays pointed the wrong way).
+
+**Decision:** custom shaders must not use `INV_VIEW_MATRIX[3]` or `CAMERA_POSITION_WORLD`; use the script-set `camera_planet_km` or view-space `VERTEX`. The ocean was the only user (fixed 2026-10-09).
 
 ## Decisions to make before step 2
 
