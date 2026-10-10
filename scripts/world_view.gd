@@ -719,7 +719,9 @@ func _make_environment() -> void:
 	var sky := Sky.new()
 	sky.sky_material = _sky_material
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
-	sky.process_mode = Sky.PROCESS_MODE_REALTIME
+	# Forward+ forces realtime skies to a 256 radiance map rebuilt every frame;
+	# incremental keeps the small map and spreads its update over frames.
+	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	_environment.sky = sky
 	var world := WorldEnvironment.new()
 	world.environment = _environment
