@@ -3,7 +3,8 @@ extends SceneTree
 ## and saves every frame, once per cloud mode, so frames where a cloud patch
 ## vanishes can be found against the reference (which keeps no history, so each
 ## of its frames is exact). Saves half-size PNGs to $COMPARE_OUT as
-## fNNN-<mode>.png; FLICKER_MODES (default "reference,compute,reduced").
+## fNNN-<mode>.png; FLICKER_MODES (default "reference,reduced"); "reference"
+## integrates every pixel at full resolution.
 const HOVER = preload("res://scenes/hover_preview.tscn")
 const START := Vector3(39440.1, 24664.6, -46248.0)
 const YAW := 2.301
@@ -26,7 +27,7 @@ func _initialize() -> void:
 func _run() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	var out := OS.get_environment("COMPARE_OUT")
-	var modes: Array = Array(OS.get_environment("FLICKER_MODES").split(",")) if OS.get_environment("FLICKER_MODES") != "" else ["reference", "compute", "reduced"]
+	var modes: Array = Array(OS.get_environment("FLICKER_MODES").split(",")) if OS.get_environment("FLICKER_MODES") != "" else ["reference", "reduced"]
 	var hover = HOVER.instantiate()
 	root.add_child(hover)
 	# Ignore the desktop's mouse wheel and keys while capturing.
@@ -40,9 +41,8 @@ func _run() -> void:
 	# Hover moves along the camera's forward axis in its launch frame.
 	var forward: Vector3 = -(Basis(Vector3.UP, YAW) * Basis(Vector3.RIGHT, PITCH)).z
 	for mode in modes:
-		clouds.full_resolution = mode != "reduced"
-		clouds.compute = mode == "compute"
-		clouds.temporal = mode != "reference"
+		clouds.resolution_scale = 1.0 if mode == "reference" else 0.5
+		clouds.altitude_scaling = mode != "reference"
 		clouds.weather_time = WEATHER
 		hover.hover_position = START - forward * STEP_M * WARM
 		for i in range(120): await process_frame

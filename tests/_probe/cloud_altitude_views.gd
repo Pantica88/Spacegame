@@ -19,9 +19,9 @@ func _run() -> void:
 			hover.hover_position = base + Vector3(0, km * 1000.0, 0)
 			hover.hover_yaw = 3.782
 			hover.hover_pitch = pitch
-			for mode in ["reference", "reduced", "full"]:
-				hover._clouds.full_resolution = mode != "reduced"
-				hover._clouds.temporal = mode != "reference"
+			for mode in ["reference", "reduced"]:
+				hover._clouds.resolution_scale = 1.0 if mode == "reference" else 0.5
+				hover._clouds.altitude_scaling = mode != "reference"
 				for i in range(100): await process_frame
 				await RenderingServer.frame_post_draw
 				root.get_texture().get_image().save_png("%s/%03dkm-%s-%s.png" % [out, int(km), "low" if pitch > -0.5 else "down", mode])

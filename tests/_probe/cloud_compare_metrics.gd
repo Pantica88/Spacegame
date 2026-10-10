@@ -15,7 +15,7 @@ func _initialize() -> void:
 		var reference := Image.load_from_file("%s/%s-reference.png" % [out, name])
 		var detail := _detail(reference)
 		var line := "%-16s" % name
-		for mode in ["reference2", "reduced", "full", "compute"]:
+		for mode in ["reference2", "reduced"]:
 			var path := "%s/%s-%s.png" % [out, name, mode]
 			if not FileAccess.file_exists(path): continue
 			var image := Image.load_from_file(path)

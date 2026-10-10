@@ -8,7 +8,7 @@ const YAW := 1.966
 const PITCH := -0.379
 const WEATHER := 34.2
 const SNAPSHOTS := [5, 20, 40]
-var MODES := ["reduced", "full", "compute"] if OS.get_environment("MOTION_MODES") == "" else Array(OS.get_environment("MOTION_MODES").split(","))
+var MODES := ["reduced"]
 var hover: Node
 
 func _initialize() -> void:
@@ -37,9 +37,8 @@ func _run() -> void:
 	for speed in [1.0, 8.0, 50.0]:
 		for c in cases:
 			for mode in MODES:
-				hover._clouds.full_resolution = mode != "reduced"
-				hover._clouds.compute = mode == "compute"
-				hover._clouds.temporal = true
+				hover._clouds.resolution_scale = 0.5
+				hover._clouds.altitude_scaling = true
 				_pose(START)
 				for i in range(120): await process_frame
 				# Snapshots taken mid-movement, without pausing the motion.
@@ -50,17 +49,16 @@ func _run() -> void:
 						await RenderingServer.frame_post_draw
 						root.get_texture().get_image().save_png("%s/%s%d_f%02d-%s.png" % [out, c[0], int(speed), i + 1, mode])
 			# Still references at each snapshot pose.
-			hover._clouds.full_resolution = true
-			hover._clouds.compute = false
-			hover._clouds.temporal = false
+			hover._clouds.resolution_scale = 1.0
+			hover._clouds.altitude_scaling = false
 			for frame in SNAPSHOTS:
 				_pose(START + c[1] * speed * frame)
 				for i in range(8): await process_frame
 				await RenderingServer.frame_post_draw
 				root.get_texture().get_image().save_png("%s/%s%d_f%02d-reference.png" % [out, c[0], int(speed), frame])
 	_pose(START)
-	hover._clouds.full_resolution = true
-	hover._clouds.temporal = false
+	hover._clouds.resolution_scale = 1.0
+	hover._clouds.altitude_scaling = false
 	for i in range(30): await process_frame
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("%s/start.png" % out)

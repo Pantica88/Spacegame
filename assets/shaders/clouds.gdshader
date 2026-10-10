@@ -12,12 +12,6 @@ uniform sampler2D scene_color : hint_screen_texture, filter_nearest, repeat_disa
 // Reduced-resolution volume: encoded color in RGB, unmultiplied, opacity in A.
 uniform sampler2D cloud_lowres : filter_nearest, repeat_disable;
 uniform bool lowres_enabled = false;
-// The offscreen target matches this view pixel for pixel: nothing is
-// upsampled, so no neighbouring texel can bleed across a silhouette.
-uniform bool lowres_exact = false;
-// The compute passes store linear light at full float precision instead of
-// the 8-bit encoding.
-uniform bool lowres_linear = false;
 
 void vertex() {
 	POSITION = vec4(VERTEX.xy, 1.0, 1.0);
@@ -38,10 +32,10 @@ vec4 upsample_clouds(vec2 uv) {
 		vec4 encoded = texelFetch(cloud_lowres, texel, 0);
 		vec2 w2 = mix(1.0 - f, f, vec2(offset));
 		float weight = w2.x * w2.y * encoded.a;
-		color += (lowres_linear ? encoded.rgb : pow(encoded.rgb, vec3(2.2)) * CLOUD_ENCODE_RANGE) * weight;
+		color += pow(encoded.rgb, vec3(2.2)) * weight;
 		alpha += weight;
 	}
-	return vec4(color / max(alpha, 1e-5), alpha);
+	return vec4(color * CLOUD_ENCODE_RANGE / max(alpha, 1e-5), alpha);
 }
 
 // Distance to the scene for a depth sample at uv, or 1e20 where the depth
@@ -107,7 +101,7 @@ void fragment() {
 	// integrate here carry cloud from rays that run on past the hills. Bilinear
 	// upsampling would bleed that onto terrain as dashes below the horizon.
 	bool lowres_safe = true;
-	if (lowres_enabled && !lowres_exact) {
+	if (lowres_enabled) {
 		vec2 lowres_texel = 1.0 / vec2(textureSize(cloud_lowres, 0));
 		// Authored decks fill only the lower part of the shell, so their horizon
 		// sits below the shell limb; guard that silhouette too.

@@ -7,7 +7,8 @@ extends SceneTree
 ## and the planet's spin and sunlight. Snapshots are taken mid-flight, each
 ## followed by a reference that marches every pixel of the same pose.
 ## Saves to $COMPARE_OUT; cloud_compare_metrics.gd scores them.
-## ORBIT_MODES (comma list, default "reduced,compute") picks the cloud modes.
+## Cloud modes: "reduced" (the game's clouds) and "reference" (every pixel
+## integrated at full resolution).
 const FlightModel = preload("res://scripts/flight_model.gd")
 const START := Vector3(28925.7, 22594.4, -23024.9)
 const YAW := -0.415
@@ -40,9 +41,8 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _mode(mode: String) -> void:
-	clouds.full_resolution = mode != "reduced"
-	clouds.compute = mode == "compute"
-	clouds.temporal = mode != "reference"
+	clouds.resolution_scale = 1.0 if mode == "reference" else 0.5
+	clouds.altitude_scaling = mode != "reference"
 
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
@@ -64,7 +64,7 @@ func _advance(warp: int) -> void:
 
 func _run() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-	var modes: Array = Array(OS.get_environment("ORBIT_MODES").split(",")) if OS.get_environment("ORBIT_MODES") != "" else ["reduced", "compute"]
+	var modes: Array = ["reduced"]
 	hover = OrbitHover.new()
 	root.add_child(hover)
 	# Ignore the desktop's mouse wheel and keys while capturing.

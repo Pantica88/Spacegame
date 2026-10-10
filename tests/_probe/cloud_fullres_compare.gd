@@ -11,9 +11,8 @@ func _initialize() -> void:
 
 func _mode(mode: String) -> void:
 	var clouds: Node = hover._clouds
-	clouds.full_resolution = mode != "reduced"
-	clouds.compute = mode == "compute"
-	clouds.temporal = mode != "reference"
+	clouds.resolution_scale = 1.0 if mode == "reference" else 0.5
+	clouds.altitude_scaling = mode != "reference"
 
 func _pose(position: Vector3, yaw: float, pitch: float) -> void:
 	hover.hover_position = position
@@ -49,7 +48,7 @@ func _run() -> void:
 		_pose(view[1], view[2], view[3])
 		_mode("reference")
 		await _shot("%s-reference" % view[0], 90)
-		for mode in ["reduced", "full", "compute"]:
+		for mode in ["reduced"]:
 			_mode(mode)
 			await _shot("%s-%s" % [view[0], mode], 90)
 		# Noise floor: the reference again, after the other modes.
@@ -71,7 +70,7 @@ func _run() -> void:
 		var start: Vector3 = motion[1]
 		var step: Vector3 = motion[4]
 		var turn := deg_to_rad(motion[5])
-		for mode in ["reduced", "full", "compute"]:
+		for mode in ["reduced"]:
 			_mode(mode)
 			_pose(start, motion[2], motion[3])
 			for i in range(90): await process_frame
