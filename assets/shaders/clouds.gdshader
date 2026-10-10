@@ -12,6 +12,9 @@ uniform sampler2D scene_color : hint_screen_texture, filter_nearest, repeat_disa
 // Reduced-resolution volume: encoded color in RGB, unmultiplied, opacity in A.
 uniform sampler2D cloud_lowres : filter_nearest, repeat_disable;
 uniform bool lowres_enabled = false;
+// Share of each pixel integrated here at full resolution on top of the reduced
+// pass: crossfades between the two as the camera climbs (cloud_layer.gd).
+uniform float full_blend = 0.0;
 
 void vertex() {
 	POSITION = vec4(VERTEX.xy, 1.0, 1.0);
@@ -73,7 +76,12 @@ vec4 shade_clouds(vec3 ray, vec4 segments, float clip, vec2 uv, vec2 frag, bool 
 		// Opacity changes inside a cloud bank stay on the reduced-resolution
 		// path. Raymarching those edges here duplicates the volume pass over
 		// large orbital views; geometric silhouettes are guarded by lowres_safe.
-		return upsample_clouds(uv);
+		vec4 reduced = upsample_clouds(uv);
+		if (full_blend <= 0.0) { return reduced; }
+		// Mix in premultiplied form; both carry unmultiplied colour.
+		vec4 full = integrate_clouds(ray, clip, frag);
+		vec4 mixed = mix(vec4(reduced.rgb * reduced.a, reduced.a), vec4(full.rgb * full.a, full.a), full_blend);
+		return vec4(mixed.rgb / max(mixed.a, 1e-5), mixed.a);
 	}
 	return integrate_clouds(ray, clip, frag);
 }

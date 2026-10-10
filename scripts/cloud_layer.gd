@@ -14,11 +14,22 @@ static var _bounded_shaders := {}
 ## Fraction of the view resolution integrated offscreen. 1.0 integrates every
 ## pixel in the composite instead.
 var resolution_scale := 0.5
-## Seen from well above the shell, clouds are soft and fill the screen while no
-## ray saturates, so the offscreen pass steps down to these scales (metres above
-## the shell top). Fixed steps avoid reallocating the target every frame.
-const ALTITUDE_SCALES := [Vector2(3000.0, 0.5), Vector2(8000.0, 0.375), Vector2(INF, 0.25)]
-const ALTITUDE_SCALE_HYSTERESIS := 500.0
+## Scales of the offscreen pass by height above the shell top (metres), in place
+## of resolution_scale. Lower scales from altitude saved up to 1.9 ms but drew a
+## staircase along the deck's edge against the sky, so the clouds keep half
+## resolution. Far out the planet is small on screen and integrating every
+## pixel in the composite costs less than the offscreen passes (0.45 ms at
+## 1,500 km, 3.4 ms at 800 km, 16 ms at 400 km; 1080p, RX 580), with nothing
+## reprojected to soften or flicker (2026-10-10).
+## The owner chose where full resolution begins (about 3,000 km up) in the
+## hover preview. Over the band below it, the composite crossfades from the
+## half-resolution pass to integrating every pixel, so the switch itself at
+## the top changes nothing visible. Above it the offscreen passes run at full
+## resolution: every pixel there is still reprojected and averaged over frames,
+## because integrating them afresh flickered while the camera moved (march
+## samples are spaced from the camera, so travel slid them through the deck).
+const FULL_RESOLUTION_FADE := Vector2(2450000.0, 2950000.0)
+var _far_offscreen := false
 ## Marches a quarter of the reduced pass each frame and reprojects the rest
 ## from the previous frame. Comparisons disable it to march every pixel.
 var temporal := true
@@ -207,16 +218,18 @@ func _notification(what: int) -> void:
 		_sync_lowres()
 
 func effective_scale() -> float:
-	return minf(resolution_scale, _altitude_scale) if altitude_scaling else resolution_scale
+	return _altitude_scale if altitude_scaling else resolution_scale
 
 func _update_altitude_scale(above_top: float) -> void:
-	var index := 0
-	while above_top >= ALTITUDE_SCALES[index].x: index += 1
-	var candidate: float = ALTITUDE_SCALES[index].y
-	if candidate == _altitude_scale: return
-	# Only change once clear of the boundary, so hovering at it cannot thrash.
-	var boundary: float = ALTITUDE_SCALES[index - 1].x if candidate < _altitude_scale else ALTITUDE_SCALES[index].x
-	if absf(above_top - boundary) >= ALTITUDE_SCALE_HYSTERESIS: _altitude_scale = candidate
+	var fade := smoothstep(FULL_RESOLUTION_FADE.x, FULL_RESOLUTION_FADE.y, above_top) if altitude_scaling else 0.0
+	_far_offscreen = fade >= 1.0
+	_altitude_scale = 1.0 if _far_offscreen else 0.5
+	# Above the band the offscreen passes already run at full resolution.
+	(material_override as ShaderMaterial).set_shader_parameter("full_blend", 0.0 if _far_offscreen else fade)
+
+## Whether the volume integrates offscreen rather than in the composite.
+func integrates_offscreen() -> bool:
+	return effective_scale() < 1.0 or (altitude_scaling and _far_offscreen)
 
 ## The offscreen march viewport, for tools that measure its render time.
 func lowres_viewport() -> SubViewport:
@@ -228,7 +241,7 @@ func lowres_viewport() -> SubViewport:
 func _sync_lowres() -> void:
 	var camera: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
 	# The map disables the host's 3D pass; the offscreen clouds would go unseen.
-	var active := effective_scale() < 1.0 and is_visible_in_tree() and is_instance_valid(camera) and not get_viewport().disable_3d
+	var active := integrates_offscreen() and is_visible_in_tree() and is_instance_valid(camera) and not get_viewport().disable_3d
 	_lowres.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
 	var composite := material_override as ShaderMaterial
 	composite.set_shader_parameter("lowres_enabled", active)
@@ -282,7 +295,11 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	var planet_value: Variant = (material_override as ShaderMaterial).get_shader_parameter("camera_planet_km")
 	var planet: Vector3 = planet_value if planet_value is Vector3 else Vector3.ZERO
 	var moved_km := planet.distance_to(_previous_planet)
-	var valid := _temporal_valid and size == _previous_size and turn < TEMPORAL_MAX_TURN and moved_km < 5.0
+	# Travel is reprojected (clouds_resolve.gdshader), so only a jump that is
+	# large against the distance to the clouds refills history; far above them a
+	# fast camera covers many kilometres a frame.
+	var max_jump_km := maxf(5.0, (planet.length() - _shade_top) * 0.1)
+	var valid := _temporal_valid and size == _previous_size and turn < TEMPORAL_MAX_TURN and moved_km < max_jump_km
 	_lowres_material.set_shader_parameter("temporal_march", true)
 	_lowres_material.set_shader_parameter("temporal_offset", offset)
 	_lowres_material.set_shader_parameter("temporal_target_size", Vector2(size))
@@ -293,6 +310,18 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	resolve_material.set_shader_parameter("fresh_offset", offset)
 	resolve_material.set_shader_parameter("history_valid", valid)
 	resolve_material.set_shader_parameter("previous_view_rotation", _previous_basis.inverse())
+	# Travel since the previous frame, computed here in double precision, and
+	# the middle of the low deck, where history is assumed to lie.
+	resolve_material.set_shader_parameter("camera_motion_km", planet - _previous_planet if valid else Vector3.ZERO)
+	resolve_material.set_shader_parameter("camera_planet_km", planet)
+	resolve_material.set_shader_parameter("reprojection_radius_km", _shade_bottom + _shade_thickness * _shade_deck * 0.5)
+	# Far above the clouds, average fresh samples with history (see the shader),
+	# but not while the camera travels, where averaging only softens.
+	var above_km := planet.length() - _shade_top
+	var travel := smoothstep(0.0005, 0.005, moved_km / maxf(above_km, 1.0))
+	var far := smoothstep(100.0, 600.0, above_km) * (1.0 - travel)
+	resolve_material.set_shader_parameter("history_blend", 0.7 * far)
+	resolve_material.set_shader_parameter("history_tolerance", 0.15 * far)
 	_mirror_camera(_resolve_cameras[current], camera)
 	target.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_resolve[1 - current].render_target_update_mode = SubViewport.UPDATE_DISABLED
