@@ -12,7 +12,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 |---|---|---|---|
 | 1 | Engine: Godot 4.5.1, custom double-precision build | OK | Upgrade to 4.8.x when stable, between roadmap steps |
 | 2 | Coordinate precision: double | OK | — |
-| 3 | Renderer: moving from Compatibility to Forward+ | **Decided, in progress** | Branch `renderer-forward-plus` |
+| 3 | Renderer: Forward+ | OK | Done 2026-10-09; tuned to beat Compatibility at 1080p |
 | 4 | Simulation in GDScript, custom flight model | Conditional | Requires step 6 (on-rails, level of detail) |
 | 5 | No Godot physics engine; all collision custom | OK | Note for docking and combat |
 | 6 | Solar system: fixed sun, no heliocentric orbits (sun size decided) | **Gap** | Fold into step 3 |
@@ -59,6 +59,8 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 **Stop condition:** keep Compatibility only if Forward+ has a blocker with no clear fix, or 1080p frame times on the RX 580 are clearly worse than Compatibility after reasonable tuning. Record the result here either way.
 
 **1080p result before tuning (2026-10-09, RX 580, fullscreen, standard preset):** Forward+ costs about 12% more GPU time in every scenario. Orbit (16.8 ms) and re-entry (18.6 ms) exceed the 16.7 ms budget; Compatibility measured 15.0 and 16.1 ms. The owner chose to keep Forward+ and tune.
+
+**After tuning (2026-10-09):** FXAA instead of MSAA 2× and incremental sky radiance (Forward+ forces realtime skies to a 256 map rebuilt every frame). Orbit 14.7 ms, re-entry 15.7 ms at 1080p, both under budget and slightly faster than Compatibility (15.0 / 16.1 ms). **Forward+ is confirmed.**
 
 **Known porting work:** `ocean.gdshader` converts depth with the OpenGL convention (`raw * 2.0 - 1.0`, `linear_depth`); `clouds.gdshader` already branches on `CURRENT_RENDERER` and shows the pattern. Forward+ renders in linear HDR where Compatibility does not, so atmosphere, sky, sun and glow colours will need re-tuning by eye. `tools/perf_lab.py` hardcodes `gl_compatibility` and needs a renderer option.
 
