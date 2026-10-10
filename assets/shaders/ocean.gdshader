@@ -364,7 +364,10 @@ void vertex() {
 	}
 	// Planet: distant water is seen through the same air as the terrain.
 	vec3 ray = (world_pos - planet_center_world) * 0.001 - camera_planet_km;
-	vec3 view_dir = normalize(world_pos - INV_VIEW_MATRIX[3].xyz);
+	// Camera position from the script-set camera_planet_km, not INV_VIEW_MATRIX[3]
+	// or CAMERA_POSITION_WORLD: Godot 4.5's double-precision Forward+ stores the
+	// negated camera origin there (docs/FOUNDATION_REVIEW.md, entry 15).
+	vec3 view_dir = normalize(ray);
 	air_light = vec3(0.0);
 	air_transmission = vec3(1.0);
 	sky_light = vec3(0.0);
@@ -450,7 +453,10 @@ void fragment() {
 	vec3 hull_axis = hull_b - hull_a;
 	float hull_t = clamp(dot(world_pos - hull_a, hull_axis) / max(dot(hull_axis, hull_axis), 1e-6), 0.0, 1.0);
 	float hull_distance = distance(world_pos, hull_a + hull_axis * hull_t);
-	float foam = (1.0 - step(edge_scale, z_dif)) * (hull_radius > 0.0 ? smoothstep(hull_radius, hull_radius + 1.5, hull_distance) : 1.0);
+	// Foam only where the scene lies just behind the water. A negative difference
+	// is an object in front of it (anti-aliased silhouette pixels of the craft,
+	// chute lines), which drew a white outline around them.
+	float foam = step(0.0, z_dif) * (1.0 - step(edge_scale, z_dif)) * (hull_radius > 0.0 ? smoothstep(hull_radius, hull_radius + 1.5, hull_distance) : 1.0);
 	vec3 depth_color_adj = mix(color, authored_color(edge_color), foam);
 	ALBEDO = clamp(surface_color + depth_color_adj, vec3(0.0), vec3(1.0));
 	METALLIC = metallic;
@@ -480,7 +486,10 @@ void fragment() {
 	vec3 tangent_u = normalize(axis_u - up_world * dot(axis_u, up_world));
 	vec3 tangent_v = cross(up_world, tangent_u);
 	vec3 normal_world = normalize(tangent_u * tangent_normal.x + tangent_v * tangent_normal.y + up_world * tangent_normal.z);
-	vec3 view_ray = normalize(world_pos - INV_VIEW_MATRIX[3].xyz);
+	// Camera position from the script-set camera_planet_km, not INV_VIEW_MATRIX[3]
+	// or CAMERA_POSITION_WORLD: Godot 4.5's double-precision Forward+ stores the
+	// negated camera origin there (docs/FOUNDATION_REVIEW.md, entry 15).
+	vec3 view_ray = normalize((world_pos - planet_center_world) * 0.001 - camera_planet_km);
 	float reflectance = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal_world, -view_ray), 0.0, 1.0), 5.0);
 	// Full ripples scatter grazing rays across kilometres of cloud and
 	// break the reflection into flecks; mirror a calmer surface.
