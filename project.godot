@@ -6,7 +6,7 @@ config/name="Aphelion — Flight Works"
 config/version="0.3.26"
 config/description="Build something worth bringing home. A 3D rocket-building sandbox."
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.4", "GL Compatibility")
+config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://assets/icon.svg"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="BlufftonFlightWorks/Aphelion"
@@ -22,8 +22,7 @@ window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
 [rendering]
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method="forward_plus"
 textures/default_filters/use_nearest_mipmap_filter=false
 anti_aliasing/quality/msaa_3d=2
 environment/defaults/default_clear_color=Color(0.025, 0.04, 0.055, 1)

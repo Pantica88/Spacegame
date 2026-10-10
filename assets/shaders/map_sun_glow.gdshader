@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode unshaded, blend_add, cull_disabled, depth_draw_never;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 void vertex() {
 	// Face the map camera while retaining the sun's world position and depth.
@@ -13,4 +14,7 @@ void fragment() {
 	float bloom = exp(-radius * radius / 1.625) * 2.2;
 	ALBEDO = vec3(1.0, 0.60, 0.20) * halo + vec3(1.0, 0.96, 0.88) * bloom;
 	ALPHA = 1.0 - smoothstep(3.5, 6.0, radius);
+	vec4 added = additive_output(ALBEDO, ALPHA);
+	ALBEDO = added.rgb;
+	ALPHA = added.a;
 }

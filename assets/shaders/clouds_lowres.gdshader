@@ -3,6 +3,7 @@ shader_type spatial;
 // keeps full 8-bit precision for thin wisps.
 render_mode unshaded, blend_premul_alpha, cull_disabled, depth_draw_never, depth_test_disabled, shadows_disabled, fog_disabled;
 #include "res://assets/shaders/clouds_volume.gdshaderinc"
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 void vertex() {
 	POSITION = vec4(VERTEX.xy, 1.0, 1.0);
@@ -26,6 +27,6 @@ void fragment() {
 	// The same pixel coordinate keeps each pixel's stable jitter unchanged.
 	vec4 result = integrate_clouds(ray, 1e20, pixel);
 	if (result.a < 0.005) { discard; }
-	ALBEDO = pow(clamp(result.rgb / CLOUD_ENCODE_RANGE, 0.0, 1.0), vec3(1.0 / 2.2));
+	ALBEDO = stored_output(pow(clamp(result.rgb / CLOUD_ENCODE_RANGE, 0.0, 1.0), vec3(1.0 / 2.2)));
 	ALPHA = result.a;
 }

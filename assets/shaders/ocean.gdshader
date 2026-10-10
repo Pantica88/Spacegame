@@ -14,6 +14,7 @@ render_mode blend_mix, cull_disabled, depth_draw_always;
 // Includes atmosphere.gdshaderinc; cloud_layer.gd mirrors its uniforms here.
 #include "res://assets/shaders/clouds_volume.gdshaderinc"
 #include "res://assets/shaders/water.gdshaderinc"
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform vec3 albedo : source_color = vec3(0.0, 0.04, 0.10);
 uniform vec3 albedo2 : source_color = vec3(0.0, 0.08, 0.18);
@@ -135,7 +136,13 @@ float fresnel(float amount, vec3 normal, vec3 view) {
 // The tutorial linearises depth with hand-set near/far planes. This camera's
 // planes span 0.5 m to over 1000 km, so use the exact inverse projection.
 float linear_depth(float raw, vec2 screen_uv, mat4 inv_projection) {
+	// OpenGL (Compatibility) depth is in [-1, 1]; Vulkan (Forward+/Mobile)
+	// already stores NDC depth in [0, 1], reversed-Z.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 	vec4 view = inv_projection * vec4(screen_uv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
+#else
+	vec4 view = inv_projection * vec4(screen_uv * 2.0 - 1.0, raw, 1.0);
+#endif
 	return -view.z / view.w;
 }
 
@@ -358,7 +365,10 @@ void vertex() {
 	}
 	// Planet: distant water is seen through the same air as the terrain.
 	vec3 ray = (world_pos - planet_center_world) * 0.001 - camera_planet_km;
-	vec3 view_dir = normalize(world_pos - INV_VIEW_MATRIX[3].xyz);
+	// Camera position from the script-set camera_planet_km, not INV_VIEW_MATRIX[3]
+	// or CAMERA_POSITION_WORLD: Godot 4.5's double-precision Forward+ stores the
+	// negated camera origin there (docs/FOUNDATION_REVIEW.md, entry 15).
+	vec3 view_dir = normalize(ray);
 	air_light = vec3(0.0);
 	air_transmission = vec3(1.0);
 	sky_light = vec3(0.0);
@@ -420,8 +430,8 @@ void fragment() {
 	depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
 	float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
 
-	vec3 screen_color = textureLod(SCREEN_TEXTURE, SCREEN_UV, depth_blend_power * 2.5).rgb;
-	vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, depth_blend_power);
+	vec3 screen_color = displayed_screen_color(textureLod(SCREEN_TEXTURE, SCREEN_UV, depth_blend_power * 2.5).rgb);
+	vec3 depth_color = mix(authored_color(color_shallow.rgb), authored_color(color_deep.rgb), depth_blend_power);
 	vec3 color = mix(screen_color * depth_color, depth_color * 0.25, depth_blend_power * 0.5);
 
 	float z_depth = depth;
@@ -439,13 +449,16 @@ void fragment() {
 		untiled(wave_bump, wave_pos, wave_dx, wave_dy, time2, noise_scale, 3), 0.3);
 
 	float fresnel = fresnel(5.0, NORMAL, VIEW);
-	vec3 surface_color = mix(albedo, albedo2, fresnel);
+	vec3 surface_color = mix(authored_color(albedo), authored_color(albedo2), fresnel);
 
 	vec3 hull_axis = hull_b - hull_a;
 	float hull_t = clamp(dot(world_pos - hull_a, hull_axis) / max(dot(hull_axis, hull_axis), 1e-6), 0.0, 1.0);
 	float hull_distance = distance(world_pos, hull_a + hull_axis * hull_t);
-	float foam = (1.0 - step(edge_scale, z_dif)) * (hull_radius > 0.0 ? smoothstep(hull_radius, hull_radius + 1.5, hull_distance) : 1.0);
-	vec3 depth_color_adj = mix(color, edge_color, foam);
+	// Foam only where the scene lies just behind the water. A negative difference
+	// is an object in front of it (anti-aliased silhouette pixels of the craft,
+	// chute lines), which drew a white outline around them.
+	float foam = step(0.0, z_dif) * (1.0 - step(edge_scale, z_dif)) * (hull_radius > 0.0 ? smoothstep(hull_radius, hull_radius + 1.5, hull_distance) : 1.0);
+	vec3 depth_color_adj = mix(color, authored_color(edge_color), foam);
 	ALBEDO = clamp(surface_color + depth_color_adj, vec3(0.0), vec3(1.0));
 	METALLIC = metallic;
 	ROUGHNESS = roughness;
@@ -474,7 +487,10 @@ void fragment() {
 	vec3 tangent_u = normalize(axis_u - up_world * dot(axis_u, up_world));
 	vec3 tangent_v = cross(up_world, tangent_u);
 	vec3 normal_world = normalize(tangent_u * tangent_normal.x + tangent_v * tangent_normal.y + up_world * tangent_normal.z);
-	vec3 view_ray = normalize(world_pos - INV_VIEW_MATRIX[3].xyz);
+	// Camera position from the script-set camera_planet_km, not INV_VIEW_MATRIX[3]
+	// or CAMERA_POSITION_WORLD: Godot 4.5's double-precision Forward+ stores the
+	// negated camera origin there (docs/FOUNDATION_REVIEW.md, entry 15).
+	vec3 view_ray = normalize((world_pos - planet_center_world) * 0.001 - camera_planet_km);
 	float reflectance = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal_world, -view_ray), 0.0, 1.0), 5.0);
 	// Full ripples scatter grazing rays across kilometres of cloud and
 	// break the reflection into flecks; mirror a calmer surface.
@@ -507,5 +523,7 @@ void fragment() {
 	// Replaces the environment's reflection, which is one fixed gradient in
 	// every direction: it kept the side facing away from a sunset bright.
 	RADIANCE = vec4(0.0, 0.0, 0.0, sky_reflection_strength);
+	ALBEDO = material_output(ALBEDO);
+	EMISSION = material_output(EMISSION);
 	ALPHA = fade * mix(smoothstep(0.9, 1.0, fade), 1.0, depth_blend_power) * shore;
 }

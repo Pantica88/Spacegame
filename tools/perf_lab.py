@@ -98,7 +98,7 @@ def run_case(godot, case, config):
         path.mkdir()
         env['XDG_' + key + '_HOME'] = str(path)
     cmd = [godot, '--path', str(ROOT), '--resolution', 'x'.join(map(str, config['expected_resolution'])),
-           '--disable-vsync', '--audio-driver', 'Dummy', '--rendering-method', 'gl_compatibility',
+           '--disable-vsync', '--audio-driver', 'Dummy', '--rendering-method', config.get('renderer', 'forward_plus'),
            *(['--fullscreen'] if config.get('fullscreen') else []),
            '--script', 'res://tests/performance/run_scenario.gd', '--', '--config', str(case / 'config.json')]
     started = time.monotonic()
@@ -151,8 +151,8 @@ def capture(args, output, lab):
         raise ValueError('Another graphical Godot process is active (PIDs ' + ', '.join(str(p['pid']) for p in contenders) + '). Close it before benchmarking.')
     config = dict(lab['presets'][args.preset], preset=args.preset, resolution=lab['resolution'],
                   renderer=lab['renderer'], seed=lab['seed'], budget_ms=1000 / lab['target_fps'])
-    for name in ('repeats', 'warmup_seconds', 'sample_seconds'):
-        if getattr(args, name) is not None:
+    for name in ('repeats', 'warmup_seconds', 'sample_seconds', 'renderer'):
+        if getattr(args, name, None) is not None:
             config[name] = getattr(args, name)
     if config['repeats'] < 1 or config['warmup_seconds'] < .1 or config['sample_seconds'] < 2:
         raise ValueError('Require repeats >= 1, warmup >= 0.1 seconds, capture >= 2 simulation seconds')
@@ -203,7 +203,7 @@ def capture(args, output, lab):
             case_config = dict(scenario=scenario, output_dir=str(case), expected_resolution=config['resolution'],
                                seed=config['seed'], warmup_seconds=config['warmup_seconds'],
                                sample_seconds=config['sample_seconds'], capture=not args.no_capture,
-                               fullscreen=bool(config.get('fullscreen')))
+                               fullscreen=bool(config.get('fullscreen')), renderer=config['renderer'])
             ok, interrupted = run_case(godot, case, case_config)
             success &= ok
             manifest['results'].append(str((case / 'result.json').relative_to(directory)))
@@ -250,6 +250,7 @@ def main(argv=None):
     run.add_argument('--label', default='capture')
     run.add_argument('--scenario', action='append')
     run.add_argument('--resolution')
+    run.add_argument('--renderer', choices=('forward_plus', 'mobile', 'gl_compatibility'), help='Rendering method; defaults to tests/performance/lab.json')
     run.add_argument('--fullscreen', action='store_true', help='Needed when --resolution matches the monitor; window decorations shrink a window that size')
     run.add_argument('--repeats', type=int)
     run.add_argument('--warmup-seconds', type=float)

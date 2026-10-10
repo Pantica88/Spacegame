@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform float phase = 0.0;
 uniform float thrust_intensity : hint_range(0.0, 1.0) = 1.0;
@@ -9,7 +10,7 @@ void fragment() {
 	float t = UV.y;
 	float angle = UV.x * 6.28318530718;
 	float clock = TIME * 3.5 + phase + COLOR.r * 4.7;
-	float tail = pow(1.0 - t, 1.7) * (1.0 - smoothstep(0.8, 1.0, t));
+	float tail = pow(max(1.0 - t, 0.0), 1.7) * (1.0 - smoothstep(0.8, 1.0, t));
 	// Integer angular frequencies keep the circumference seamless.
 	float strand = pow(max(sin(angle * 37.0 + sin(t * 9.0 - clock) * 1.6 + phase), 0.0), 9.0);
 	float fine = pow(max(sin(angle * 67.0 - t * 5.0 + sin(clock + t * 13.0)), 0.0), 14.0);
@@ -26,4 +27,7 @@ void fragment() {
 	glow += core_color * core * 2.2;
 	ALBEDO = glow;
 	ALPHA = COLOR.a * thrust_intensity * emergence * (1.0 - smoothstep(0.72, 1.0, t));
+	vec4 added = additive_output(ALBEDO, ALPHA);
+	ALBEDO = added.rgb;
+	ALPHA = added.a;
 }

@@ -2,6 +2,7 @@ shader_type spatial;
 render_mode unshaded;
 #include "res://assets/shaders/atmosphere.gdshaderinc"
 #include "res://assets/shaders/water.gdshaderinc"
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 varying vec3 sphere_pos;
 varying vec3 surface_point;
 varying vec3 world_surface_direction;
@@ -69,6 +70,9 @@ void vertex() {
 	POSITION = PROJECTION_MATRIX*vec4(view_vertex,1.0);
 }
 void fragment() {
+	vec3 ocean_tint = authored_color(ocean_color.rgb);
+	vec3 seabed_tint = authored_color(seabed_color.rgb);
+	vec3 distant_tint = authored_color(distant_body_color.rgb);
 	vec4 surface_color = COLOR;
 	vec4 topography = vec4(0.5, 1.0, 0.5, 0.4);
 	float apparent_radius = asin(clamp(BODY_RADIUS/max(length(camera_planet_km),BODY_RADIUS),0.0,1.0));
@@ -129,7 +133,7 @@ void fragment() {
 	if (water_cutout_radius > 0.0 && length(VERTEX) < water_cutout_radius && water_mask <= 0.5) {
 		water_mask *= 1.0-smoothstep(0.9,1.0,seabed_fade);
 	}
-	vec3 ocean = ocean_albedo(ocean_color.rgb,surface_color.a,sphere_pos,footprint,wave,wave_visibility,wave_a,water_mask);
+	vec3 ocean = ocean_albedo(ocean_tint,surface_color.a,sphere_pos,footprint,wave,wave_visibility,wave_a,water_mask);
 	col = mix(col,ocean,water_mask);
 	DEPTH = FRAGCOORD.z;
 	// Pixels that are mostly water become seabed; the rest stay coast.
@@ -138,7 +142,7 @@ void fragment() {
 		// stays a little below the surface (more with distance, where depth
 		// precision is coarser) so the water never ties with it.
 		float shelf = smoothstep(0.5,0.95,surface_color.a);
-		vec3 bed = mix(seabed_color.rgb,seabed_color.rgb*0.2,shelf);
+		vec3 bed = mix(seabed_tint,seabed_tint*0.2,shelf);
 		// While the water fades out, show the old water beneath it instead of
 		// a dark seabed, so the two cross-fade without dark rims.
 		float bed_visible = smoothstep(0.9,1.0,seabed_fade);
@@ -155,7 +159,13 @@ void fragment() {
 		float above_sea = length(sphere_pos)-BODY_RADIUS*1000.0;
 		// Rebuild the view position from this pixel's own depth: VERTEX loses
 		// metres to planet-sized coordinates beside the launch-origin path.
+		// OpenGL (Compatibility) depth spans [-1, 1] in NDC; Vulkan stores
+		// NDC depth directly, reversed-Z.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 		vec4 here = INV_PROJECTION_MATRIX*vec4(SCREEN_UV*2.0-1.0,FRAGCOORD.z*2.0-1.0,1.0);
+#else
+		vec4 here = INV_PROJECTION_MATRIX*vec4(SCREEN_UV*2.0-1.0,FRAGCOORD.z,1.0);
+#endif
 		vec3 view_here = here.xyz/here.w;
 		vec3 ray_dir = normalize(view_here);
 		vec3 up_view = normalize(mat3(VIEW_MATRIX)*normalize(world_surface_direction));
@@ -169,13 +179,17 @@ void fragment() {
 		float far_drop = view_distance*0.01*smoothstep(4000.0,6000.0,view_distance);
 		vec3 bed_view = view_here+ray_dir*(max(above_sea+mix(seabed_shallow_m+view_distance*0.0002,seabed_depth_m,shelf),0.0)+far_drop)/descent;
 		vec4 bed_clip = PROJECTION_MATRIX*vec4(bed_view,1.0);
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 		DEPTH = bed_clip.z/bed_clip.w*0.5+0.5;
+#else
+		DEPTH = bed_clip.z/bed_clip.w;
+#endif
 		water_mask = 1.0-bed_visible;
 	}
 	// Land and ocean patterns become unstable once they are smaller than a
 	// pixel. Preserve their average body color instead of isolated bright dots.
 	float distant_smoothing = distant_surface_smoothing_enabled ? 1.0-smoothstep(0.025,0.065,apparent_radius) : 0.0;
-	col = mix(col,distant_body_color.rgb,distant_smoothing*0.92);
+	col = mix(col,distant_tint,distant_smoothing*0.92);
 	water_mask *= 1.0-distant_smoothing;
 	// Smooth radial base avoids reflecting submerged terrain facets. Swells
 	// remain visible farther out than ripples; each band filters independently.
@@ -197,7 +211,7 @@ void fragment() {
 	vec3 transmission;
 	vec3 air = scatter_air(ray_origin,normalize(ray),length(ray),transmission);
 	float glint;
-	vec3 reflected_surface = lit_surface(col,world_normal,radial,normalize(ray),sun_direction,ocean_color.rgb,water_mask,glint);
+	vec3 reflected_surface = lit_surface(col,world_normal,radial,normalize(ray),sun_direction,ocean_tint,water_mask,glint);
 	vec3 to_occluder = eclipse_center_km-surface_point;
 	// Trace from this surface point to the physical sun, not parallel rays
 	// from the body center. Its finite disk creates a penumbra during eclipse.
@@ -218,7 +232,7 @@ void fragment() {
 	air *= visibility;
 	vec3 resolved_body = (reflected_surface+vec3(1.0,0.98,0.95)*glint*0.9)*transmission+air;
 	float distant_light = 0.04+1.25*max(dot(radial,sun_direction),0.0);
-	ALBEDO = mix(resolved_body,distant_body_color.rgb*distant_light,distant_smoothing);
+	ALBEDO = mix(resolved_body,distant_tint*distant_light,distant_smoothing);
 	if (distant_surface_smoothing_enabled && !orthographic_view) {
 		ALBEDO += distant_limb_glow(camera_planet_km,ray);
 	}
@@ -251,5 +265,6 @@ void fragment() {
 		}
 		ALBEDO = inspection*(0.5+0.5*max(dot(radial,sun_direction),0.0));
 	}
+	ALBEDO = material_output(ALBEDO);
 	ROUGHNESS = 0.72;
 }

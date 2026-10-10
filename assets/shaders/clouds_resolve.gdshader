@@ -4,6 +4,7 @@ shader_type spatial;
 // Same storage as clouds_lowres.gdshader: premultiplied blending over a clear
 // target stores the encoded color unmultiplied, opacity in alpha.
 render_mode unshaded, blend_premul_alpha, cull_disabled, depth_draw_never, depth_test_disabled, shadows_disabled, fog_disabled;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 // Half-size target: texel c holds pixel 2c + fresh_offset of the full target.
 uniform sampler2D fresh_samples : filter_nearest, repeat_disable;
@@ -64,6 +65,6 @@ void fragment() {
 		}
 	}
 	if (result.a < 0.005) { discard; }
-	ALBEDO = result.rgb;
+	ALBEDO = stored_output(result.rgb);
 	ALPHA = result.a;
 }

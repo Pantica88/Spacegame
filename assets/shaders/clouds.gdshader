@@ -1,8 +1,14 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, depth_test_disabled, shadows_disabled, fog_disabled;
 #include "res://assets/shaders/clouds_volume.gdshaderinc"
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 
 uniform sampler2D scene_depth : hint_depth_texture, filter_nearest, repeat_disable;
+#if CURRENT_RENDERER != RENDERER_COMPATIBILITY
+// Reproduces Compatibility's display-space mix over the scene behind.
+render_mode blend_premul_alpha;
+uniform sampler2D scene_color : hint_screen_texture, filter_nearest, repeat_disable;
+#endif
 // Reduced-resolution volume: encoded color in RGB, unmultiplied, opacity in A.
 uniform sampler2D cloud_lowres : filter_nearest, repeat_disable;
 uniform bool lowres_enabled = false;
@@ -128,6 +134,12 @@ void fragment() {
 	}
 	vec4 result = blend ? mix(shaded[1], shaded[0], open) : shaded[0];
 	if (result.a < 0.005) { discard; }
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 	ALBEDO = result.rgb;
 	ALPHA = result.a;
+#else
+	vec4 mixed = display_mix_premultiplied(result.rgb, result.a, texture(scene_color, SCREEN_UV).rgb);
+	ALBEDO = mixed.rgb;
+	ALPHA = mixed.a;
+#endif
 }

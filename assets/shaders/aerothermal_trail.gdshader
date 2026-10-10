@@ -1,13 +1,12 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, skip_vertex_transform;
+#include "res://assets/shaders/renderer_color.gdshaderinc"
+#include "res://assets/shaders/aerothermal_hull.gdshaderinc"
 
 uniform float strength : hint_range(0.0, 1.0) = 0.0;
 uniform float airspeed = 0.0;
 uniform float flow_phase = 0.0;
 uniform vec3 local_flow = vec3(0.0, -1.0, 0.0);
-uniform sampler2D hull_profile : filter_linear, repeat_enable;
-uniform float hull_bottom = 0.0;
-uniform float hull_top = 10.0;
 varying float path_distance;
 varying float exposure;
 varying float air_contact;
@@ -17,26 +16,6 @@ float noise(float p) {
 	float i = floor(p);
 	float f = fract(p);
 	return mix(hash(i), hash(i + 1.0), f * f * (3.0 - 2.0 * f));
-}
-
-float hull_radius(float y, float angle) {
-	float row = clamp((y - hull_bottom) / (hull_top - hull_bottom), 0.0, 1.0);
-	return textureLod(hull_profile, vec2(angle / 6.2831853 + 0.5 / 24.0, (row * 47.0 + 0.5) / 48.0), 0.0).r;
-}
-
-vec4 hull_surface(vec3 p) {
-	float radial = max(length(p.xz), 0.001);
-	float angle = atan(p.z, p.x);
-	float radius = hull_radius(p.y, angle);
-	float side = radial - radius;
-	float cap = max(hull_bottom - p.y, p.y - hull_top);
-	if (cap > side + 0.12) return vec4(0.0, p.y < hull_bottom ? -1.0 : 1.0, 0.0, cap);
-	float dy = (hull_radius(p.y + 0.06, angle) - hull_radius(p.y - 0.06, angle)) / 0.12;
-	float da = (hull_radius(p.y, angle + 0.10) - hull_radius(p.y, angle - 0.10)) / 0.20;
-	vec3 normal = normalize(vec3(p.x / radial + da * p.z / (radial * radial), -dy, p.z / radial - da * p.x / (radial * radial)));
-	vec3 cap_normal = vec3(0.0, p.y < (hull_bottom + hull_top) * 0.5 ? -1.0 : 1.0, 0.0);
-	normal = normalize(mix(normal, cap_normal, smoothstep(-0.12, 0.12, cap - side)));
-	return vec4(normal, max(side, cap));
 }
 
 void vertex() {
@@ -94,10 +73,13 @@ void fragment() {
 	float packets = smoothstep(0.40, 0.86, turbulence);
 	float edge = exp(-UV.x * UV.x * 4.5) * (1.0 - smoothstep(0.7, 1.0, abs(UV.x)));
 	float root_fire = air_contact * (1.0 - smoothstep(0.05, 0.30, t));
-	float fade = mix(air_contact * 0.14, 1.0, smoothstep(0.0, 0.035, t)) * pow(1.0 - t, 1.4) * (1.0 - smoothstep(0.65, 1.0, t));
+	float fade = mix(air_contact * 0.14, 1.0, smoothstep(0.0, 0.035, t)) * pow(max(1.0 - t, 0.0), 1.4) * (1.0 - smoothstep(0.65, 1.0, t));
 	float core = pow(max(0.0, 1.0 - abs(UV.x)), 7.0) * packets;
 	vec3 color = mix(vec3(1.0, 0.40, 0.07), vec3(1.0, 0.055, 0.004), smoothstep(0.0, 0.55, t));
 	color = mix(color, vec3(1.0, 0.85, 0.48), core * (1.0 - t) * 0.55);
 	ALBEDO = color * (1.5 + core * 2.0);
 	ALPHA = exposure * strength * fade * edge * (0.08 + packets * 0.72 + root_fire * (0.20 + packets * 0.70));
+	vec4 added = additive_output(ALBEDO, ALPHA);
+	ALBEDO = added.rgb;
+	ALPHA = added.a;
 }

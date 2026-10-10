@@ -1,5 +1,6 @@
 shader_type sky;
 #include "res://assets/shaders/atmosphere.gdshaderinc"
+#include "res://assets/shaders/renderer_color.gdshaderinc"
 uniform bool workshop = true;
 uniform float reflection_strength = 1.0;
 uniform float sun_glow_visibility = 0.0;
@@ -140,4 +141,5 @@ void sky() {
 		COLOR = air + transmission*clear_view*(space+sun_glow(direction));
 		COLOR += distant_limb_glow(camera_planet_km,direction);
 	}
+	COLOR = material_output(COLOR);
 }
