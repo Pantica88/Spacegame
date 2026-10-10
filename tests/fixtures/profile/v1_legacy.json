@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "design": {
+    "name": "Legacy Kestrel",
+    "tanks": 3,
+    "engine": "kestrel",
+    "boosters": true,
+    "fins": false,
+    "booster_first": true
+  },
+  "completed": [
+    "hop",
+    "sky"
+  ],
+  "flights": 19,
+  "recoveries": 7,
+  "best_altitude": 42500.25,
+  "sound": false
+}

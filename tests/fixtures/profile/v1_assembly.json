@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "design": {
+    "name": "Tall assembly",
+    "tanks": 6,
+    "engine": "titan",
+    "boosters": false,
+    "fins": false,
+    "booster_first": false,
+    "assembly": {
+      "revision": 1,
+      "parts": [
+        {
+          "id": "capsule",
+          "kind": "capsule",
+          "parent": "",
+          "port": "root",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "decoupler",
+          "kind": "decoupler",
+          "parent": "capsule",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "tank_1",
+          "kind": "tank",
+          "parent": "decoupler",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "tank_2",
+          "kind": "tank",
+          "parent": "tank_1",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "tank_3",
+          "kind": "tank",
+          "parent": "tank_2",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "tank_4",
+          "kind": "tank",
+          "parent": "tank_3",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "tank_5",
+          "kind": "tank",
+          "parent": "tank_4",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "tank_6",
+          "kind": "tank",
+          "parent": "tank_5",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        },
+        {
+          "id": "engine",
+          "kind": "titan",
+          "parent": "tank_6",
+          "port": "bottom",
+          "rotation": 0,
+          "surface_offset": 0.0
+        }
+      ],
+      "stages": [
+        [
+          "ignite:engine"
+        ],
+        [
+          "separate:decoupler"
+        ]
+      ],
+      "next_id": 7,
+      "root_height": 17.5
+    }
+  },
+  "completed": [
+    "hop",
+    "sky",
+    "orbit"
+  ],
+  "flights": 42,
+  "recoveries": 23,
+  "best_altitude": 180000.75,
+  "sound": true
+}
