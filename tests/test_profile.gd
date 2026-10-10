@@ -21,7 +21,7 @@ func _init() -> void:
 	_test_limits()
 	_test_assembly_height()
 	_test_write_failures()
-	for suffix: String in ["", ".tmp"]:
+	for suffix: String in ["", ".tmp", ".bak"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(_path + suffix))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(_directory))
 	if _failures.is_empty():
@@ -64,7 +64,7 @@ func _test_round_trip() -> void:
 	_check(second.data["design"]["tanks"] == 2, "Defaults do not share mutable data")
 
 func _test_documents() -> void:
-	var documents: Array[String] = ["", "{broken", "null", "[]", "true", "12", "\"text\"", "{}", '{"version":[]}', '{"version":{}}', '{"version":null}', '{"version":true}', '{"version":"1"}', '{"version":0}', '{"version":2}', '{"version":1.9}', '{"version":1e999}']
+	var documents: Array[String] = ["", "{broken", "null", "[]", "true", "12", "\"text\"", "{}", '{"version":[]}', '{"version":{}}', '{"version":null}', '{"version":true}', '{"version":"1"}', '{"version":0}', JSON.stringify({"version": Profile.SAVE_VERSION + 1}), '{"version":1.9}', '{"version":1e999}']
 	for document: String in documents:
 		_write(document)
 		var profile = Profile.new(_path)
@@ -95,7 +95,7 @@ func _test_fields() -> void:
 	_check(sanitized.data["sound"] == false and sanitized.data["design"]["fins"] == false, "Valid false settings remain false")
 	_write('{"version":1,"design":[],"sound":"false"}')
 	var wrong_container = Profile.new(_path)
-	_check(wrong_container.data["design"] == Parts.default_design(), "Wrong design container is safe")
+	_check(JSON.parse_string(JSON.stringify(wrong_container.data["design"]["assembly"])) == JSON.parse_string(JSON.stringify(Parts.Craft.migrate(Parts.default_design()))), "Wrong design container is safe")
 	_check(wrong_container.data["sound"] == true, "String booleans preserve sound default")
 
 func _test_limits() -> void:

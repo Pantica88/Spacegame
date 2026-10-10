@@ -2,7 +2,7 @@ extends RefCounted
 ## Versioned, locally stored profile. No account or connection required.
 
 const SAVE_PATH: String = "user://profile.json"
-const SAVE_VERSION: int = 1
+const SAVE_VERSION: int = 2
 const MAX_SAVE_BYTES: int = 262144
 const MAX_COUNTER: int = 2147483647
 const COMPLETED_IDS: Array[String] = ["hop", "sky", "orbit"]
@@ -11,6 +11,8 @@ const Parts = preload("res://scripts/parts.gd")
 var data: Dictionary = {}
 var last_error: String = ""
 var _save_path: String = SAVE_PATH
+var _write_blocked: bool = false
+var _backup_pending: bool = false
 
 
 func _init(save_path: String = SAVE_PATH) -> void:
@@ -36,19 +38,60 @@ func _init(save_path: String = SAVE_PATH) -> void:
 	var version: Variant = stored.get("version")
 	# JSON numbers can be floats. Check type and exact value before conversion;
 	# casts such as int([]) and float({}) otherwise raise runtime errors.
-	if not _is_number(version) or not is_finite(float(version)) or float(version) != SAVE_VERSION:
+	if not _is_number(version) or not is_finite(float(version)) or float(version) < 1.0 or floorf(float(version)) != float(version):
 		last_error = "Saved profile version is unsupported. Starting with a fresh design."
 		return
+	if float(version) > SAVE_VERSION:
+		_write_blocked = true
+		last_error = "Saved profile is from a newer version. The file has been preserved; saving is disabled."
+		return
+	var original_version: int = int(version)
+	while int(stored["version"]) < SAVE_VERSION:
+		var previous_version: int = int(stored["version"])
+		match previous_version:
+			1:
+				stored = _migrate_v1_to_v2(stored)
+			_:
+				stored = {}
+		# Every migration must advance exactly one version. Fail closed if a
+		# future bump is missing its migration or returns an invalid result.
+		if stored.get("version") != previous_version + 1:
+			_write_blocked = true
+			last_error = "Saved profile migration is unavailable. The file has been preserved; saving is disabled."
+			return
 	data = _sanitize(stored)
+	if original_version < SAVE_VERSION:
+		_backup_pending = true
+		save()
+
+
+static func _migrate_v1_to_v2(stored: Dictionary) -> Dictionary:
+	# v1 allowed scalar craft settings as well as assemblies. Materialize the
+	# legacy craft once, retaining an existing assembly and all profile records.
+	var migrated: Dictionary = _sanitize(stored)
+	if not Parts.Craft.valid(migrated.design.get("assembly")):
+		migrated.design["assembly"] = Parts.Craft.migrate(migrated.design)
+	migrated["version"] = 2
+	return migrated
 
 
 func save() -> bool:
+	if _write_blocked:
+		last_error = "Saved profile version is unsupported. The file has been preserved; saving is disabled."
+		return false
 	var clean: Dictionary = _sanitize(data)
 	var contents: String = JSON.stringify(clean, "\t")
 	# Never replace a usable save with a document our loader would reject.
 	if contents.to_utf8_buffer().size() > MAX_SAVE_BYTES:
 		last_error = "Saved profile is too large. The previous save has been preserved."
 		return false
+	if _backup_pending:
+		# Copy the exact original bytes before touching the destination. Keep
+		# this pending on failure so later autosaves cannot skip the backup.
+		var backup_error: Error = DirAccess.copy_absolute(ProjectSettings.globalize_path(_save_path), ProjectSettings.globalize_path(_save_path + ".bak"))
+		if backup_error != OK:
+			last_error = "Could not back up the saved profile. The previous save has been preserved."
+			return false
 	var temporary: String = _save_path + ".tmp"
 	var file: FileAccess = FileAccess.open(temporary, FileAccess.WRITE)
 	if file == null:
@@ -67,6 +110,7 @@ func save() -> bool:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
 		last_error = "Could not replace the saved profile."
 		return false
+	_backup_pending = false
 	data = clean
 	last_error = ""
 	return true
