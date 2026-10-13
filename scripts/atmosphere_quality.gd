@@ -14,8 +14,8 @@ static var _sun_depth_tables := {}
 
 ## Rayleigh (R) and Mie (G) optical depth in km from each table point to the
 ## top of the air, at density scale 1, using the shader loop's quadrature
-## with light_samples steps. Cached per body size and sample count (about
-## 10 ms per sample to build); density changes do not need a rebuild.
+## with light_samples steps. Cached per body size and sample count (13 to
+## 32 ms to build); density changes do not need a rebuild.
 static func sun_depth_table(body_radius_km: float, air_radius_km: float, light_samples: int = 6) -> ImageTexture:
 	light_samples = clampi(light_samples, 1, 6)
 	var key := Vector3(body_radius_km, air_radius_km, light_samples)
