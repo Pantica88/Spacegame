@@ -69,14 +69,16 @@ static func apply_sun_depth_table(material: ShaderMaterial, body_radius_km: floa
 ## the air, up to 0.8 body radii, and beyond. Lower presets keep the light
 ## counts, so the table (and the sunlight colour) stay those of "ultra"; 6
 ## view samples in the lower air already showed a faint sky band.
-## "ultra" keeps the original budgets. "reference" is the original rendering
+## surface_step: atmosphere_surface_step, for rays ending on terrain or water.
+## half_res_sky: integrate the sky's scattering at half resolution.
+## "ultra" keeps the original budgets and full-resolution sky. "reference" is the original rendering
 ## path (no sunlight table) kept for A/B validation; menus do not offer it.
 const PRESETS := {
-	"low": {"view": [8, 12, 16], "light": [2, 3, 6], "sun_table": true},
-	"medium": {"view": [10, 20, 32], "light": [2, 3, 6], "sun_table": true},
-	"high": {"view": [12, 24, 48], "light": [2, 3, 6], "sun_table": true},
-	"ultra": {"view": [16, 32, 64], "light": [2, 3, 6], "sun_table": true},
-	"reference": {"view": [16, 32, 64], "light": [2, 3, 6], "sun_table": false},
+	"low": {"view": [8, 12, 16], "light": [2, 3, 6], "surface_step": 0.12, "half_res_sky": true, "sun_table": true},
+	"medium": {"view": [10, 20, 32], "light": [2, 3, 6], "surface_step": 0.09, "half_res_sky": true, "sun_table": true},
+	"high": {"view": [12, 24, 48], "light": [2, 3, 6], "surface_step": 0.06, "half_res_sky": true, "sun_table": true},
+	"ultra": {"view": [16, 32, 64], "light": [2, 3, 6], "surface_step": 0.03, "half_res_sky": false, "sun_table": true},
+	"reference": {"view": [16, 32, 64], "light": [2, 3, 6], "surface_step": 0.03, "half_res_sky": false, "sun_table": false},
 }
 const MENU := ["low", "medium", "high", "ultra"]
 ## Indistinguishable from "ultra" in the benchmark captures (mean difference
@@ -101,3 +103,6 @@ static func prepare(preset: String, body_radius_km: float, air_radius_km: float)
 	if not uses_sun_table(preset) or air_radius_km <= body_radius_km: return
 	for count in PRESETS.get(preset, PRESETS[DEFAULT]).light:
 		sun_depth_table(body_radius_km, air_radius_km, count)
+
+static func settings(preset: String) -> Dictionary:
+	return PRESETS.get(preset, PRESETS[DEFAULT])

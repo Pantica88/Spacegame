@@ -58,6 +58,8 @@ var _inside_flight_tick := false
 
 const PlanetSurface = preload("res://scripts/planet_surface.gd")
 const AtmosphereQuality = preload("res://scripts/atmosphere_quality.gd")
+const SKY_SHADER = preload("res://assets/shaders/sky.gdshader")
+static var _half_res_sky_shader: Shader
 ## Atmospheric rendering preset (AtmosphereQuality.PRESETS); visual only.
 var atmosphere_quality: String = AtmosphereQuality.DEFAULT
 
@@ -719,7 +721,7 @@ func _make_environment() -> void:
 	_environment.ambient_light_energy = 0.42
 	_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	_sky_material = ShaderMaterial.new()
-	_sky_material.shader = preload("res://assets/shaders/sky.gdshader")
+	_sky_material.shader = _half_res_sky() if AtmosphereQuality.settings(atmosphere_quality).half_res_sky else SKY_SHADER
 	var sky := Sky.new()
 	sky.sky_material = _sky_material
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
@@ -748,7 +750,18 @@ func set_atmosphere_quality(preset: String) -> void:
 	if not AtmosphereQuality.valid(preset): return
 	atmosphere_quality = preset
 	_prepare_atmosphere_tables()
+	if _sky_material != null:
+		# Every sky uniform is set again by _update_atmosphere().
+		_sky_material.shader = _half_res_sky() if AtmosphereQuality.settings(preset).half_res_sky else SKY_SHADER
 	if is_instance_valid(camera): _update_atmosphere()
+
+
+## sky.gdshader with its half-resolution scattering pass enabled.
+static func _half_res_sky() -> Shader:
+	if _half_res_sky_shader == null:
+		_half_res_sky_shader = Shader.new()
+		_half_res_sky_shader.code = SKY_SHADER.code.replace("shader_type sky;", "shader_type sky;\nrender_mode use_half_res_pass;\n#define SKY_HALF_RES")
+	return _half_res_sky_shader
 
 
 func _prepare_atmosphere_tables() -> void:
@@ -837,6 +850,7 @@ func _update_atmosphere() -> void:
 	for material in air_materials:
 		material.set_shader_parameter("atmosphere_view_samples", samples.x)
 		material.set_shader_parameter("atmosphere_light_samples", samples.y)
+		material.set_shader_parameter("atmosphere_surface_step", AtmosphereQuality.settings(atmosphere_quality).surface_step)
 		material.set_shader_parameter("BODY_RADIUS", body_radius_km)
 		material.set_shader_parameter("AIR_RADIUS", air_radius_km)
 		material.set_shader_parameter("atmosphere_density_scale", float(definition.atmosphere_visual_density))

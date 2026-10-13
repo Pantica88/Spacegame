@@ -19,6 +19,10 @@ uniform int atmosphere_light_samples = 6;
 uniform sampler2D atmosphere_sun_depth : filter_linear, repeat_disable;
 uniform vec2 atmosphere_sun_depth_radii = vec2(0.0);
 uniform int atmosphere_sun_depth_samples = 6;
+// Step length, as a fraction of the air's depth, for rays that end on a
+// surface (terrain, water, cloud) instead of leaving the air. Their density
+// rises smoothly toward the end; limb and sky rays keep 3%.
+uniform float atmosphere_surface_step = 0.03;
 const vec2 SUN_DEPTH_SIZE = vec2(256.0, 64.0);
 
 // A restrained distant limb shared by sky and surface, so the opaque disk
@@ -66,7 +70,8 @@ vec3 scatter_air_steps(vec3 origin, vec3 direction, float max_distance, float bo
 		int view_count = clamp(max_view_samples,1,64);
 		// Short paths (ground seen from low altitude) barely change in density;
 		// cap their steps at ~3% of the air's depth. Long limb rays keep the full count.
-		view_count = clamp(int(ceil((end-start)/max((air_radius-body_radius)*0.03,0.001))),2,view_count);
+		float step_fraction = end < interval.y-0.001 ? atmosphere_surface_step : 0.03;
+		view_count = clamp(int(ceil((end-start)/max((air_radius-body_radius)*step_fraction,0.001))),2,view_count);
 		int light_count = clamp(max_light_samples,1,6);
 		bool sun_table = light_count == atmosphere_sun_depth_samples && abs(atmosphere_sun_depth_radii.x-body_radius) < 0.001 && abs(atmosphere_sun_depth_radii.y-air_radius) < 0.001;
 		float step_length = (end-start)/float(view_count);

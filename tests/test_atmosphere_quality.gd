@@ -35,6 +35,13 @@ func _test_presets() -> void:
 	for preset in ["ultra", "reference"]:
 		check(Quality.PRESETS[preset].view == [16, 32, 64] and Quality.PRESETS[preset].light == [2, 3, 6], preset + " keeps the original sample budgets")
 	check(Quality.uses_sun_table("ultra") and not Quality.uses_sun_table("reference"), "Only the reference preset uses the light loop")
+	for preset in ["ultra", "reference"]:
+		check(Quality.settings(preset).surface_step == 0.03 and not Quality.settings(preset).half_res_sky, preset + " keeps the original step length and full-resolution sky")
+	var previous_step := 1.0
+	for preset in Quality.MENU:
+		var step: float = Quality.settings(preset).surface_step
+		check(step >= 0.03 and step <= previous_step, "%s surface step is no coarser than the preset below it" % preset)
+		previous_step = step
 	for band in range(3):
 		var previous := 0
 		for preset in Quality.MENU:
@@ -117,6 +124,11 @@ func _test_world() -> void:
 			check(material.get_shader_parameter("atmosphere_view_samples") == expected.x, "%s applies its view budget at runtime" % preset)
 			var radii: Vector2 = material.get_shader_parameter("atmosphere_sun_depth_radii")
 			check(radii == (Vector2(600.0, 690.0) if preset != "reference" else Vector2.ZERO), "%s sets the sunlight table for the home body" % preset)
+		var settings: Dictionary = Quality.settings(preset)
+		check((world._sky_material.shader != World.SKY_SHADER) == settings.half_res_sky, "%s selects its sky resolution" % preset)
+		check(("render_mode use_half_res_pass" in world._sky_material.shader.code) == settings.half_res_sky, "%s sky variant matches its render mode" % preset)
+		for material in materials:
+			check(is_equal_approx(material.get_shader_parameter("atmosphere_surface_step"), settings.surface_step), "%s applies its surface step" % preset)
 		var table_samples: Variant = world._sky_material.get_shader_parameter("atmosphere_sun_depth_samples")
 		if preset != "reference":
 			check(table_samples == expected.y, "%s table matches the band's light count" % preset)

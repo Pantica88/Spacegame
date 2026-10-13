@@ -1,4 +1,7 @@
 shader_type sky;
+// world_view.gd derives a variant from this code with use_half_res_pass and
+// SKY_HALF_RES defined: scattering is integrated for a quarter of the pixels
+// (lower quality presets). This file alone is the full-resolution path.
 #include "res://assets/shaders/atmosphere.gdshaderinc"
 #include "res://assets/shaders/renderer_color.gdshaderinc"
 uniform bool workshop = true;
@@ -127,7 +130,26 @@ void sky() {
 		}
 		// Follow the ray all the way to the atmosphere. A fixed maximum made the
 		// glow vanish abruptly once the camera traveled beyond that distance.
-		vec3 air = scatter_air(camera_planet_km,direction,planet_distance+AIR_RADIUS,transmission);
+		vec3 air;
+#if defined(SKY_HALF_RES) && CURRENT_RENDERER != RENDERER_COMPATIBILITY
+		if (AT_HALF_RES_PASS) {
+			// Scattering varies smoothly across the sky; the full pass filters
+			// this up. Luminance stands in for the coloured transmission.
+			air = scatter_air(camera_planet_km,direction,planet_distance+AIR_RADIUS,transmission);
+			COLOR = air;
+			ALPHA = dot(transmission,vec3(0.2126,0.7152,0.0722));
+		} else if (sun_glow_visibility > 0.0 && length(direction-sun_direction) < 0.4) {
+			// The sun's halo keeps its full, reddened transmission.
+			air = scatter_air(camera_planet_km,direction,planet_distance+AIR_RADIUS,transmission);
+		} else {
+			air = HALF_RES_COLOR.rgb;
+			transmission = vec3(HALF_RES_COLOR.a);
+		}
+		if (!AT_HALF_RES_PASS) {
+#else
+		air = scatter_air(camera_planet_km,direction,planet_distance+AIR_RADIUS,transmission);
+		{
+#endif
 		vec2 ground = sphere_interval(camera_planet_km,direction,BODY_RADIUS);
 		float clear_view = ground.x > 0.0 && ground.y > ground.x ? 0.0 : 1.0;
 		float local_sun_height = dot(normalize(camera_planet_km),sun_direction);
@@ -140,6 +162,8 @@ void sky() {
 		}
 		COLOR = air + transmission*clear_view*(space+sun_glow(direction));
 		COLOR += distant_limb_glow(camera_planet_km,direction);
+		COLOR = material_output(COLOR);
+		}
 	}
-	COLOR = material_output(COLOR);
+	if (AT_CUBEMAP_PASS || workshop) { COLOR = material_output(COLOR); }
 }
