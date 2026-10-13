@@ -7,6 +7,7 @@ const MAX_SAVE_BYTES: int = 262144
 const MAX_COUNTER: int = 2147483647
 const COMPLETED_IDS: Array[String] = ["hop", "sky", "orbit"]
 const Parts = preload("res://scripts/parts.gd")
+const AtmosphereQuality = preload("res://scripts/atmosphere_quality.gd")
 
 var data: Dictionary = {}
 var last_error: String = ""
@@ -117,7 +118,7 @@ func save() -> bool:
 
 
 static func _defaults() -> Dictionary:
-	return {"version": SAVE_VERSION, "design": Parts.default_design(), "completed": [], "flights": 0, "recoveries": 0, "best_altitude": 0.0, "sound": true}
+	return {"version": SAVE_VERSION, "design": Parts.default_design(), "completed": [], "flights": 0, "recoveries": 0, "best_altitude": 0.0, "sound": true, "atmosphere_quality": AtmosphereQuality.DEFAULT}
 
 
 static func _sanitize(stored: Dictionary) -> Dictionary:
@@ -147,6 +148,8 @@ static func _sanitize(stored: Dictionary) -> Dictionary:
 		clean["best_altitude"] = maxf(0.0, float(altitude))
 	if stored.get("sound") is bool:
 		clean["sound"] = bool(stored["sound"])
+	if stored.get("atmosphere_quality") is String and stored["atmosphere_quality"] in AtmosphereQuality.MENU:
+		clean["atmosphere_quality"] = str(stored["atmosphere_quality"])
 	if stored.get("completed") is Array:
 		for id: Variant in stored["completed"]:
 			if id is String and id in COMPLETED_IDS and not id in clean["completed"]:

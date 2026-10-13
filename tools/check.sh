@@ -71,6 +71,7 @@ run_check orbit_mouse --headless --script res://tests/test_orbit_mouse.gd
 run_check map_focus_precision --headless --script res://tests/test_map_focus_precision.gd
 run_check orbital_map --headless --script res://tests/test_orbital_map.gd
 run_check sun --headless --script res://tests/test_sun.gd
+run_check atmosphere_quality --headless --script res://tests/test_atmosphere_quality.gd
 run_check eight_boosters --headless --script res://tests/benchmark_eight_boosters.gd
 run_check radial_engines --headless --script res://tests/benchmark_radial_engines.gd
 run_check separator_snap --headless --script res://tests/benchmark_separator_snap.gd

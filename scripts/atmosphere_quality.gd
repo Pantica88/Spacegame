@@ -66,15 +66,22 @@ static func apply_sun_depth_table(material: ShaderMaterial, body_radius_km: floa
 	material.set_shader_parameter("atmosphere_sun_depth_radii", Vector2(body_radius_km, air_radius_km))
 
 ## View-ray and sunlight sample limits for the observer in the lower half of
-## the air, up to 0.8 body radii, and beyond.
+## the air, up to 0.8 body radii, and beyond. Lower presets keep the light
+## counts, so the table (and the sunlight colour) stay those of "ultra"; 6
+## view samples in the lower air already showed a faint sky band.
 ## "ultra" keeps the original budgets. "reference" is the original rendering
 ## path (no sunlight table) kept for A/B validation; menus do not offer it.
 const PRESETS := {
+	"low": {"view": [8, 12, 16], "light": [2, 3, 6], "sun_table": true},
+	"medium": {"view": [10, 20, 32], "light": [2, 3, 6], "sun_table": true},
+	"high": {"view": [12, 24, 48], "light": [2, 3, 6], "sun_table": true},
 	"ultra": {"view": [16, 32, 64], "light": [2, 3, 6], "sun_table": true},
 	"reference": {"view": [16, 32, 64], "light": [2, 3, 6], "sun_table": false},
 }
-const MENU := ["ultra"]
-const DEFAULT := "ultra"
+const MENU := ["low", "medium", "high", "ultra"]
+## Indistinguishable from "ultra" in the benchmark captures (mean difference
+## under half a display level) and about 1 ms cheaper in orbit on an RX 580.
+const DEFAULT := "high"
 
 static func valid(preset: String) -> bool:
 	return PRESETS.has(preset)

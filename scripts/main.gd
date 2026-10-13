@@ -100,6 +100,7 @@ func _ready() -> void:
 	# Disable body heating visuals for the flight performance comparison.
 	world.aerothermal_effects_enabled = false
 	world.set_design(design)
+	world.set_atmosphere_quality(profile.data.atmosphere_quality)
 	add_child(world)
 	var cost_overlay := preload("res://scripts/render_cost_overlay.gd").new()
 	cost_overlay.world = world
@@ -1328,6 +1329,17 @@ func _toggle_pause() -> void:
 		if not profile.save():
 			_toast(profile.last_error)
 		audio_button.text = "Sound: %s" % ("ON" if sound.enabled else "OFF")
+	)
+	# Visual only; takes effect on the next frame, mid-flight included.
+	var quality_button := _button(box, "Atmosphere: %s" % str(world.atmosphere_quality).capitalize(), func(): pass)
+	quality_button.pressed.connect(func():
+		var presets: Array = WorldView.AtmosphereQuality.MENU
+		var next: String = presets[(presets.find(world.atmosphere_quality) + 1) % presets.size()]
+		world.set_atmosphere_quality(next)
+		profile.data.atmosphere_quality = next
+		if not profile.save():
+			_toast(profile.last_error)
+		quality_button.text = "Atmosphere: %s" % next.capitalize()
 	)
 	_button(box, "Credits & licenses", _show_credits)
 	_button(box, "Quit to desktop", _quit)
