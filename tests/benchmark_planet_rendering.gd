@@ -167,6 +167,9 @@ func _setup(scenario: String, variant: String) -> void:
 		# OceanPatch.follow() (via _place) owns visibility; only override it here.
 		if variant == "no_ocean": world._ocean.visible = false
 		world._landscape.visible = variant != "no_site"
+	# Probe: ocean cloud-reflection mode (ocean.gdshader cloud_reflection_shading).
+	if OS.get_environment("BENCH_OCEAN_SHADING") != "" and is_instance_valid(world._ocean):
+		world._ocean.material().set_shader_parameter("cloud_reflection_shading", int(OS.get_environment("BENCH_OCEAN_SHADING")))
 	if variant in ["air_min", "air_ultra"]:
 		var counts := Vector2i(2, 1) if variant == "air_min" else Vector2i(64, 6)
 		for material in _air_materials():
