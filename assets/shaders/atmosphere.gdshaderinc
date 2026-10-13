@@ -11,6 +11,15 @@ const vec3 BETA_M = vec3(0.009);
 const int VIEW_SAMPLES = 64;
 uniform int atmosphere_view_samples = 64;
 uniform int atmosphere_light_samples = 6;
+// Sunlight optical depth (Rayleigh, Mie) at density scale 1, by sun cosine and
+// height, precomputed with the light loop's own quadrature at
+// atmosphere_sun_depth_samples steps (atmosphere_quality.gd). It replaces that
+// inner loop only for calls with the same body radii and light sample count;
+// every other call, and materials without a table (zero radii), keep the loop.
+uniform sampler2D atmosphere_sun_depth : filter_linear, repeat_disable;
+uniform vec2 atmosphere_sun_depth_radii = vec2(0.0);
+uniform int atmosphere_sun_depth_samples = 6;
+const vec2 SUN_DEPTH_SIZE = vec2(256.0, 64.0);
 
 // A restrained distant limb shared by sky and surface, so the opaque disk
 // does not cut a hard black hole into a broad, bright background halo.
@@ -59,6 +68,7 @@ vec3 scatter_air_steps(vec3 origin, vec3 direction, float max_distance, float bo
 		// cap their steps at ~3% of the air's depth. Long limb rays keep the full count.
 		view_count = clamp(int(ceil((end-start)/max((air_radius-body_radius)*0.03,0.001))),2,view_count);
 		int light_count = clamp(max_light_samples,1,6);
+		bool sun_table = light_count == atmosphere_sun_depth_samples && abs(atmosphere_sun_depth_radii.x-body_radius) < 0.001 && abs(atmosphere_sun_depth_radii.y-air_radius) < 0.001;
 		float step_length = (end-start)/float(view_count);
 		vec2 view_depth = vec2(0.0);
 		float cosine = dot(direction, sun_direction);
@@ -73,19 +83,25 @@ vec3 scatter_air_steps(vec3 origin, vec3 direction, float max_distance, float bo
 			view_depth += density*step_length;
 			float sample_radius = length(sample_pos);
 			float horizon = -sqrt(max(0.0,1.0-body_radius*body_radius/(sample_radius*sample_radius)));
-			float sun_elevation = dot(sample_pos/sample_radius,sun_direction)-horizon;
+			float sun_cosine = dot(sample_pos/sample_radius,sun_direction);
+			float sun_elevation = sun_cosine-horizon;
 			// A broad penumbra plus weak indirect scattering keeps the halo wrapped
 			// around the globe instead of slicing it at the day/night terminator.
 			float direct_visibility = smoothstep(-0.10,0.12,sun_elevation);
 			float illumination = mix(0.22,1.0,direct_visibility);
 			if (illumination > 0.001) {
-				float sun_length = max(sphere_interval(sample_pos,sun_direction,air_radius).y,0.0);
 				vec2 sun_depth = vec2(0.0);
-				for (int j=0; j<6; j++) {
-					if (j >= light_count) { break; }
-					float u = (float(j)+0.5)/float(light_count);
-					vec3 sun_pos = sample_pos+sun_direction*(u*u*sun_length);
-					sun_depth += air_density_for(length(sun_pos)-body_radius,density_scale,air_radius-body_radius)*sun_length*(2.0*float(j)+1.0)/float(light_count*light_count);
+				if (sun_table) {
+					vec2 table_uv = vec2(sun_cosine*0.5+0.5,clamp((sample_radius-body_radius)/(air_radius-body_radius),0.0,1.0));
+					sun_depth = textureLod(atmosphere_sun_depth,(table_uv*(SUN_DEPTH_SIZE-1.0)+0.5)/SUN_DEPTH_SIZE,0.0).rg*density_scale;
+				} else {
+					float sun_length = max(sphere_interval(sample_pos,sun_direction,air_radius).y,0.0);
+					for (int j=0; j<6; j++) {
+						if (j >= light_count) { break; }
+						float u = (float(j)+0.5)/float(light_count);
+						vec3 sun_pos = sample_pos+sun_direction*(u*u*sun_length);
+						sun_depth += air_density_for(length(sun_pos)-body_radius,density_scale,air_radius-body_radius)*sun_length*(2.0*float(j)+1.0)/float(light_count*light_count);
+					}
 				}
 				vec3 view_attenuation = exp(-BETA_R*half_depth.x-BETA_M*half_depth.y);
 				vec3 sun_attenuation = exp(-BETA_R*(half_depth.x+sun_depth.x)-BETA_M*(half_depth.y+sun_depth.y));

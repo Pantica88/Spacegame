@@ -57,6 +57,9 @@ var _current_flight_frame: Dictionary = {}
 var _inside_flight_tick := false
 
 const PlanetSurface = preload("res://scripts/planet_surface.gd")
+const AtmosphereQuality = preload("res://scripts/atmosphere_quality.gd")
+## Atmospheric rendering preset (AtmosphereQuality.PRESETS); visual only.
+var atmosphere_quality: String = AtmosphereQuality.DEFAULT
 
 var camera: Camera3D
 var _rocket: Node3D
@@ -215,6 +218,7 @@ func reload_planet() -> void:
 	if is_instance_valid(_ocean): _ocean.configure(PlanetSurface.home())
 	_update_planet_lod(_last_altitude)
 	_reload_moons()
+	_prepare_atmosphere_tables()
 	_update_atmosphere()
 
 func set_mode(mode: String) -> void:
@@ -739,6 +743,19 @@ func _make_environment() -> void:
 	add_child(_fill)
 
 
+## Takes effect on the next drawn frame; unknown presets are ignored.
+func set_atmosphere_quality(preset: String) -> void:
+	if not AtmosphereQuality.valid(preset): return
+	atmosphere_quality = preset
+	_prepare_atmosphere_tables()
+	if is_instance_valid(camera): _update_atmosphere()
+
+
+func _prepare_atmosphere_tables() -> void:
+	var definition: Resource = PlanetSurface.home().definition
+	AtmosphereQuality.prepare(atmosphere_quality, float(definition.radius) * 0.001, (float(definition.radius) + float(definition.atmosphere_height)) * 0.001)
+
+
 func set_sun_direction(direction: Vector3) -> void:
 	if not direction.is_finite() or direction.length_squared() < 0.000001: return
 	_sun_direction = direction.normalized()
@@ -809,18 +826,21 @@ func _update_atmosphere() -> void:
 	_clouds.update_weather(definition, observer, _sun_direction, not in_workshop)
 	# Dense lower-air paths are smooth; reserve the long integration for the
 	# thin, distant orbital limb instead of paying 64 x 6 samples everywhere.
-	var air_altitude := maxf(observer.length() - float(definition.radius) * 0.001, 0.0)
-	var air_height := float(definition.atmosphere_height) * 0.001
-	var view_samples := 16 if air_altitude < air_height * 0.5 else (32 if air_altitude < float(definition.radius) * 0.0008 else 64)
-	var light_samples := 2 if view_samples == 16 else (3 if view_samples == 32 else 6)
+	# The budgets per altitude band come from the quality preset.
+	var body_radius_km := float(definition.radius) * 0.001
+	var air_radius_km := (float(definition.radius) + float(definition.atmosphere_height)) * 0.001
+	var air_altitude := maxf(observer.length() - body_radius_km, 0.0)
+	var samples := AtmosphereQuality.samples(atmosphere_quality, air_altitude, air_radius_km - body_radius_km, body_radius_km)
+	var sun_table := AtmosphereQuality.uses_sun_table(atmosphere_quality)
 	var air_materials: Array = [_sky_material, _planet.material_override]
 	if is_instance_valid(_ocean): air_materials.append(_ocean.material())
 	for material in air_materials:
-		material.set_shader_parameter("atmosphere_view_samples", view_samples)
-		material.set_shader_parameter("atmosphere_light_samples", light_samples)
-		material.set_shader_parameter("BODY_RADIUS", float(definition.radius) * 0.001)
-		material.set_shader_parameter("AIR_RADIUS", (float(definition.radius) + float(definition.atmosphere_height)) * 0.001)
+		material.set_shader_parameter("atmosphere_view_samples", samples.x)
+		material.set_shader_parameter("atmosphere_light_samples", samples.y)
+		material.set_shader_parameter("BODY_RADIUS", body_radius_km)
+		material.set_shader_parameter("AIR_RADIUS", air_radius_km)
 		material.set_shader_parameter("atmosphere_density_scale", float(definition.atmosphere_visual_density))
+		AtmosphereQuality.apply_sun_depth_table(material, body_radius_km, air_radius_km, samples.y, sun_table)
 	var planet_material: ShaderMaterial = _planet.material_override
 	# The launch datum already lives in the floating-origin frame. Avoid the
 	# GPU cancelling a 600 km vertex against a 600 km translation at the deck.
@@ -837,7 +857,6 @@ func _update_atmosphere() -> void:
 	_sun.look_at(_sun.global_position - _sun_direction, light_up)
 	# The nearby shadow map cannot cover an entire planet. Explicitly eclipse
 	# the craft/site light while shaders shade the globe using the same sun.
-	var body_radius_km := float(definition.radius) * 0.001
 	var horizon := -sqrt(maxf(0.0, 1.0 - pow(body_radius_km / maxf(observer.length(),body_radius_km),2.0)))
 	var sun_visible := smoothstep(horizon-0.008, horizon+0.008, sun_height)
 	# Keep the surrounding sky glow steady when the rocket crosses the sun.
@@ -954,6 +973,10 @@ func _update_moons() -> void:
 		material.set_shader_parameter("foreground_body_radius_km", float(PlanetSurface.home().definition.radius) * 0.001)
 		material.set_shader_parameter("foreground_air_radius_km", (float(PlanetSurface.home().definition.radius) + float(PlanetSurface.home().definition.atmosphere_height)) * 0.001)
 		material.set_shader_parameter("foreground_atmosphere_density", float(PlanetSurface.home().definition.atmosphere_visual_density))
+		# The moon's own call has no table match; its foreground haze is the
+		# home body's, at the shader's default six light samples.
+		var home: Resource = PlanetSurface.home().definition
+		AtmosphereQuality.apply_sun_depth_table(material, float(home.radius) * 0.001, (float(home.radius) + float(home.atmosphere_height)) * 0.001, 6, AtmosphereQuality.uses_sun_table(atmosphere_quality))
 		camera.far = maxf(camera.far, camera.position.distance_to(moon.position) + float(definition.radius) + float(definition.relief) * 1.5 + 1000.0)
 
 func _make_planet() -> void:
@@ -966,6 +989,7 @@ func _make_planet() -> void:
 	PlanetSurface.home().configure_surface_material(material)
 	material.set_shader_parameter("distant_surface_smoothing_enabled", true)
 	_planet.material_override = material
+	_prepare_atmosphere_tables()
 	_flight_location.add_child(_planet)
 	_clouds = preload("res://scripts/cloud_layer.gd").new()
 	_planet.add_child(_clouds)
