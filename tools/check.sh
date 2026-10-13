@@ -20,7 +20,15 @@ run_check() {
     printf 'Checking %s...\n' "$name"
     # The monitor can run before the background shell opens its redirection.
     : > "$log"
-    timeout --kill-after=2s 1800 "$project_dir/tools/run.sh" "$@" > "$log" 2>&1 &
+    # CHECK_WINDOWED=1 shows every check on the desktop instead of headless,
+    # above other windows. The editor import step stays headless.
+    local args=("$@")
+    if [[ "${CHECK_WINDOWED:-0}" == 1 && "$name" != import ]]; then
+        args=()
+        for arg in "$@"; do [[ "$arg" == --headless ]] || args+=("$arg"); done
+        args=(--always-on-top "${args[@]}")
+    fi
+    timeout --kill-after=2s 1800 "$project_dir/tools/run.sh" "${args[@]}" > "$log" 2>&1 &
     check_pid=$!
     # An assertion aborts the test method before quit(), leaving SceneTree
     # alive. Allow the backtrace to finish, then stop the entire process group.
@@ -73,6 +81,8 @@ run_check vehicle_batching --headless --script res://tests/test_vehicle_batching
 run_check geometry_cache --headless --script res://tests/test_geometry_cache.gd
 run_check titan_game_loop --headless --script res://tests/benchmark_titan_game_loop.gd
 run_check time_warp --headless --script res://tests/test_time_warp.gd
+run_check rail_warp_boundaries --headless --script res://tests/test_rail_warp_boundaries.gd
+run_check distant_rail_warp --headless --script res://tests/test_distant_rail_warp.gd
 run_check space_moons --headless --script res://tests/test_space_moons.gd
 run_check flight --headless --script res://tests/test_flight.gd
 run_check engine_cutoff --headless --script res://tests/test_engine_cutoff.gd
@@ -83,6 +93,8 @@ run_check turn_drag --headless --script res://tests/test_turn_drag.gd
 run_check flight_interpolation --headless --script res://tests/test_flight_interpolation.gd
 run_check aerothermal_visuals --headless --script res://tests/test_aerothermal_visuals.gd
 run_check flame_cloud_overlap --headless --script res://tests/test_flame_cloud_overlap.gd
+run_check cloud_composite_split --headless --script res://tests/test_cloud_composite_split.gd
+run_check cloud_deck_reconstruction --headless --script res://tests/test_cloud_deck_reconstruction.gd
 run_check plasma_preview --headless --script res://tests/test_plasma_preview.gd
 run_check distant_debris --headless --script res://tests/test_distant_debris.gd
 run_check detached_physics --headless --script res://tests/test_detached_physics.gd

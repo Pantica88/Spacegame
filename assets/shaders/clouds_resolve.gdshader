@@ -21,6 +21,9 @@ uniform mat3 previous_view_rotation;
 uniform vec3 camera_motion_km = vec3(0.0);
 uniform vec3 camera_planet_km = vec3(0.0, 600.01, 0.0);
 uniform float reprojection_radius_km = 603.85;
+// Tall authored banks can lie above rays that miss the low deck entirely.
+// Zero when the weather contains no storms.
+uniform float reprojection_storm_radius_km = 0.0;
 // Share of history kept where a pixel is marched afresh. Far above the clouds
 // a pixel covers kilometres of sub-pixel cloud, and replacing it outright
 // flickers; averaging over frames settles that. 0 replaces as before.
@@ -71,16 +74,26 @@ vec4 history_at(vec2 uv) {
 }
 
 // Distance (km) along a view ray to the reprojection sphere: the near side
-// from above, the far side from below. A ray passing beside it uses its
-// closest approach, so the distance runs on smoothly across the planet's rim
-// instead of jumping to infinity there.
+// from above, the far side from below. A ray missing it uses the higher
+// storm cap when present. Reusing the low sphere's closest approach for those
+// rays drags history too far during vertical travel (or ignores travel when
+// looking upward), interleaving old and fresh samples into dotted rows.
 float reprojection_depth(vec3 ray) {
 	float r = length(camera_planet_km);
 	float b = dot(camera_planet_km, ray);
 	// (r - R)(r + R) keeps the precision that r * r - R * R loses near the sphere.
 	float c = (r - reprojection_radius_km) * (r + reprojection_radius_km);
 	float h = b * b - c;
-	if (h < 0.0) { return max(-b, 0.0); }
+	if (h < 0.0 || (c > 0.0 && b > 0.0)) {
+		if (reprojection_storm_radius_km > reprojection_radius_km) {
+			float storm_c = (r - reprojection_storm_radius_km) * (r + reprojection_storm_radius_km);
+			float storm_h = b * b - storm_c;
+			if (storm_h >= 0.0) {
+				return max(storm_c > 0.0 ? -b - sqrt(storm_h) : -b + sqrt(storm_h), 0.0);
+			}
+		}
+		return max(-b, 0.0);
+	}
 	return max(c > 0.0 ? -b - sqrt(h) : -b + sqrt(h), 0.0);
 }
 

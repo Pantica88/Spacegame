@@ -35,6 +35,9 @@ func _ready() -> void:
 	hover_hud.add_theme_constant_override("shadow_offset_x", 2)
 	hover_hud.add_theme_constant_override("shadow_offset_y", 2)
 	layer.add_child(hover_hud)
+	var cost_overlay := preload("res://scripts/render_cost_overlay.gd").new()
+	cost_overlay.world = self
+	add_child(cost_overlay)
 	_update_camera()
 
 
@@ -51,6 +54,7 @@ func _process(delta: float) -> void:
 	hover_position += movement.limit_length() * hover_speed * boost * precise * delta
 	_update_camera()
 	hover_hud.text = "VISUAL HOVER  |  %.0f FPS  |  %.0f m/s  |  altitude %.0f m\nWASD move · Q/E down/up · Hold right mouse to look\nWheel time back/forward · −/= move speed · Shift fast · Ctrl slow\nTime %+.0f s · T reset time · R reset view · H hide HUD · C copy view · K cloud reflections %s · L sky reflection %s · N cloud density %.1f · J cloud shading %s · O ocean colour %s · Esc quit\n%s" % [Engine.get_frames_per_second(), hover_speed * boost * precise, _last_altitude, hover_time, "on" if _reflection_on("cloud_reflection_strength") else "off", "on" if _reflection_on("sky_reflection_strength") else "off", _cloud_density(), CLOUD_SHADINGS[cloud_shading], OCEAN_PRESETS[ocean_preset][0], _view_state()]
+	hover_hud.text += "\n" + _cloud_debug()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -105,6 +109,16 @@ func _reflection_on(parameter: String) -> bool:
 	var strength: Variant = _ocean.material().get_shader_parameter(parameter)
 	return strength == null or float(strength) > 0.0
 
+
+# TEMP: cloud renderer state, for the limb-staircase investigation.
+func _cloud_debug() -> String:
+	var view := get_viewport()
+	var resolve: ShaderMaterial = _clouds._resolve_materials[_clouds._temporal_frame % 2] if not _clouds._resolve_materials.is_empty() else null
+	return "Clouds: view %s x%.2f  scale %.2f  lowres %s  offscreen %s  temporal %s  history %s  blend %.2f" % [
+		view.get("size"), view.scaling_3d_scale, _clouds.effective_scale(), _clouds._lowres.size,
+		_clouds.integrates_offscreen(), _clouds.temporal,
+		resolve.get_shader_parameter("history_valid") if resolve else "-",
+		resolve.get_shader_parameter("history_blend") if resolve else 0.0]
 
 func _cloud_density() -> float:
 	# Unset until first cycled; matches the shader default.

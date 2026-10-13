@@ -1,0 +1,142 @@
+{
+	"captures": [
+		{
+			"altitude_m": 5760.14564277825,
+			"file": "start.png",
+			"frame": 0,
+			"position": [
+				127.0,
+				5760.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 5764.14564181655,
+			"file": "forward_001.png",
+			"frame": 1,
+			"position": [
+				127.0,
+				5764.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 5824.14562739246,
+			"file": "forward_016.png",
+			"frame": 16,
+			"position": [
+				127.0,
+				5824.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 5888.1456120098,
+			"file": "forward_032.png",
+			"frame": 32,
+			"position": [
+				127.0,
+				5888.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 6016.14558125427,
+			"file": "forward_064.png",
+			"frame": 64,
+			"position": [
+				127.0,
+				6016.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 6144.14555051178,
+			"file": "forward_096.png",
+			"frame": 96,
+			"position": [
+				127.0,
+				6144.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 6240.14552746341,
+			"file": "forward_120.png",
+			"frame": 120,
+			"position": [
+				127.0,
+				6240.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 6236.1455284236,
+			"file": "backward_001.png",
+			"frame": 1,
+			"position": [
+				127.0,
+				6236.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 6176.14554282813,
+			"file": "backward_016.png",
+			"frame": 16,
+			"position": [
+				127.0,
+				6176.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 6112.14555819612,
+			"file": "backward_032.png",
+			"frame": 32,
+			"position": [
+				127.0,
+				6112.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 5984.14558894199,
+			"file": "backward_064.png",
+			"frame": 64,
+			"position": [
+				127.0,
+				5984.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 5856.14561970066,
+			"file": "backward_096.png",
+			"frame": 96,
+			"position": [
+				127.0,
+				5856.0,
+				-400.4
+			]
+		},
+		{
+			"altitude_m": 5760.14564277825,
+			"file": "backward_120.png",
+			"frame": 120,
+			"position": [
+				127.0,
+				5760.0,
+				-400.4
+			]
+		}
+	],
+	"frames_per_leg": 120,
+	"metres_per_frame": 4.0,
+	"motion": "480 metres vertically, then return without settling",
+	"pitch": 0.095,
+	"temporal": false,
+	"time": 0.0,
+	"weather": 24.1,
+	"yaw": 0.0
+}

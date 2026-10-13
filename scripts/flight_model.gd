@@ -224,19 +224,38 @@ func step_rails(dt: float, rate: float) -> float:
 	_mass_cache = {}
 	while elapsed < dt:
 		if warp_limit(float(state.throttle)) < rate: break
-		var interval := minf(dt - elapsed, 10.0)
+		# Distant, debris-free coasts can cover more than ten seconds safely.
+		# Each body's motion and gravity below still bound the integration step.
+		# Debris has its own trajectories, so retain its existing step budget.
+		var interval := dt - elapsed if state.status == "flying" and state.detached.is_empty() else minf(dt - elapsed, 10.0)
 		if state.status == "flying":
 			# Resolve curved trajectories and approaching boundaries before large jumps.
-			for body in _debris_surfaces(simulation_time()):
+			var bodies := _debris_surfaces(simulation_time())
+			for index in range(bodies.size()):
+				var body: Dictionary = bodies[index]
 				var distance := _body_radius_at(state.position, body.center)
 				var speed := maxf((Vector3(state.velocity) - Vector3(body.velocity)).length(), 1.0)
 				interval = minf(interval, maxf(0.001, distance * 0.002 / speed))
 				var rates := [5.0, 10.0, 50.0, 100.0, 1000.0, 10000.0, 100000.0]
 				var factors := [0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0]
 				var definition: Resource = body.terrain.definition
+				var mu := float(definition.surface_gravity) * float(definition.radius) * float(definition.radius)
+				# Bound gravitational curvature even for an initially stationary
+				# craft. Keep the original ceiling near bodies; let it grow only
+				# where their gravitational timescale makes short steps redundant.
+				var gravity_step := 0.002 * sqrt(distance * distance * distance / maxf(mu, 0.000001))
+				interval = minf(interval, maxf(10.0, gravity_step))
 				var floor_height := maxf(float(definition.atmosphere_height), float(definition.relief) * 2.0 + 100.0)
 				var boundary := float(definition.radius) + maxf(MIN_RAIL_WARP_ALTITUDE, floor_height + float(definition.radius) * factors[maxi(rates.find(rate), 0)])
-				interval = minf(interval, maxf(0.001, (distance - boundary) / speed))
+				if (distance - boundary) / speed < interval:
+					var relative_velocity := Vector3(state.velocity) - Vector3(body.velocity)
+					var acceleration := _debris_gravity(state.position, bodies)
+					if index > 0:
+						# Include the moon's own acceleration in its moving frame.
+						var before := _debris_surfaces(simulation_time() - 1.0)
+						var after := _debris_surfaces(simulation_time() + 1.0)
+						acceleration -= (Vector3(after[index].velocity) - Vector3(before[index].velocity)) * 0.5
+					interval = _rail_boundary_interval(Vector3(state.position) - Vector3(body.center), relative_velocity, acceleration, boundary, interval)
 		if not state.detached.is_empty():
 			interval = BodyCollisions.step_limit(_collision_bodies(), interval)
 		if state.status == "flying":
@@ -259,6 +278,33 @@ func step_rails(dt: float, rate: float) -> float:
 	_rail_warp = false
 	_refresh_telemetry()
 	return elapsed
+
+
+## Build contact acceleration structures under the launch cover. Telemetry
+## can change its nearest body even millions of kilometres away; its first
+## ground query must not build a moon's collision mesh in that flight frame.
+func prepare_terrain_contacts() -> void:
+	for body in _debris_surfaces(simulation_time()):
+		body.terrain.build()
+
+
+## Estimate approach in radius, not total orbital travel. Tangential speed
+## balances gravity in a circular orbit; treating it as inward travel pins
+## the integrator to millisecond steps alongside a warp-altitude boundary.
+## Retain inward radial acceleration for an apsis that is about to descend.
+## The outer loop still limits curvature and rechecks every body's warp limit.
+static func _rail_boundary_interval(radial: Vector3, velocity: Vector3, acceleration: Vector3, boundary: float, requested: float) -> float:
+	var radius := maxf(radial.length(), 1.0)
+	var radial_speed := velocity.dot(radial / radius)
+	var closing := maxf(-radial_speed, 0.0)
+	var radial_acceleration := acceleration.dot(radial / radius) + maxf(0.0, velocity.length_squared() - radial_speed * radial_speed) / radius
+	var inward := maxf(-radial_acceleration, 0.0)
+	var gap := maxf(radius - boundary, 0.0)
+	if gap == 0.0 and (closing > 0.0 or inward > 0.0): return minf(requested, 0.001)
+	# Stable positive root of gap = closing*t + inward*t*t/2.
+	var denominator := closing + sqrt(closing * closing + 2.0 * inward * gap)
+	if denominator <= 0.0: return requested
+	return minf(requested, maxf(0.001, 2.0 * gap / denominator))
 
 
 func _can_relaunch(input: Dictionary) -> bool:
@@ -1258,6 +1304,16 @@ func _debris_inertia(piece: Dictionary) -> Vector3:
 	return Vector3(transverse, mass * r2 * 0.5, transverse)
 
 
+## Upper bound on the distance from a piece's center to any support point.
+func _debris_extent(piece: Dictionary) -> float:
+	if piece.has("shapes"):
+		var extent := 0.0
+		for shape in piece.shapes:
+			extent = maxf(extent, Vector3(shape.offset).length() + float(shape.length) * 0.5 + float(shape.radius))
+		return extent
+	return float(piece.length) * 0.5 + float(piece.radius)
+
+
 func _debris_support(piece: Dictionary, normal: Vector3) -> Vector3:
 	if piece.has("shapes"):
 		var lowest := Vector3.ZERO
@@ -1321,7 +1377,9 @@ func _classify_debris(duration: float) -> void:
 				var definition: Resource = body.terrain.definition
 				var clearance := Vector3(piece.position).distance_to(body.center) - float(definition.radius)
 				var approach := (Vector3(piece.velocity) - Vector3(body.velocity)).length() * duration
-				if clearance < maxf(float(definition.atmosphere_height), float(definition.relief) * 2.0) + 2000.0 + approach:
+				# Only ground contact needs craft-sized substeps. Drag is stable at
+				# one step per tick: physics warp keeps that at 1/15 s in the air.
+				if clearance < float(definition.relief) * 2.0 + 2000.0 + approach:
 					background = false
 					break
 		piece.background = background
@@ -1341,7 +1399,7 @@ func _integrate_detached(dt: float, background: bool = false, start_time: float 
 			continue
 		var previous: Vector3 = piece.position
 		var radial: Vector3 = previous - PLANET_CENTER
-		var previous_piece: Dictionary = piece.duplicate()
+		var previous_orientation: Basis = piece.orientation
 		var gravity := _debris_gravity(previous, previous_bodies)
 		var density := _air_density_at(_radius_at(previous) - PLANET_RADIUS)
 		var air_velocity: Vector3 = piece.velocity - terrain.surface_velocity(radial)
@@ -1387,13 +1445,21 @@ func _integrate_detached(dt: float, background: bool = false, start_time: float 
 		piece.position = _advance_position(piece, piece.position, half_velocity * dt)
 		piece.velocity = half_velocity + (acceleration - gravity + _debris_gravity(piece.position, bodies)) * (0.5 * dt)
 		var touched := false
+		var extent := _debris_extent(piece)
 		for index in range(bodies.size()):
 			var body: Dictionary = bodies[index]
 			var ground: RefCounted = body.terrain
 			var center: Vector3 = body.center
 			var old_center: Vector3 = previous_bodies[index].center
+			# Most debris is far above every surface: skip support points and
+			# terrain queries when the swept bounds cannot reach the relief.
+			var start_offset: Vector3 = previous - old_center
+			var sweep: Vector3 = Vector3(piece.position) - center - start_offset
+			var closest := start_offset + sweep * clampf(-start_offset.dot(sweep) / maxf(sweep.length_squared(), 0.000001), 0.0, 1.0)
+			if closest.length() - extent > float(ground.definition.radius) + float(ground.definition.relief) * 2.0 + 0.05:
+				continue
 			var support := _debris_support(piece, (Vector3(piece.position) - center).normalized())
-			var previous_support := _debris_support(previous_piece, (previous - old_center).normalized())
+			var previous_support := _debris_support(piece.merged({"orientation": previous_orientation}, true), (previous - old_center).normalized())
 			var hit: Dictionary = ground.segment_hit(previous + previous_support - old_center, Vector3(piece.position) + support - center, start_time, next_time)
 			var radial_end: Vector3 = Vector3(piece.position) + support - center
 			if hit.is_empty() and radial_end.length() > float(ground.definition.radius) + float(ground.definition.relief) * 2.0 + 0.05:
@@ -1517,10 +1583,14 @@ func _resolve_body_collisions() -> void:
 	var bodies := _collision_bodies()
 	var initial_craft_center: Vector3 = bodies.back().position
 	# A few contact iterations handle simultaneous contacts in a compact pile.
+	# Only pairs whose bounds touch can collide; overlap corrections move a
+	# body by its penetration depth, far less than the margin.
+	var pairs := BodyCollisions.candidate_pairs(bodies, 0.5)
 	for iteration in range(4):
-		for i in range(bodies.size()):
-			for j in range(i+1,bodies.size()):
-				BodyCollisions.resolve(bodies[i],bodies[j])
+		var touched := false
+		for pair in pairs:
+			touched = BodyCollisions.resolve(bodies[pair.x],bodies[pair.y]) or touched
+		if not touched: break
 	for piece in state.detached:
 		if piece.get("background", false): continue
 		piece.angular_velocity = (Basis(piece.orientation).transposed()*Vector3(piece.angular_momentum))/Vector3(piece.inertia)

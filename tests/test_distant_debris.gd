@@ -58,7 +58,13 @@ func run() -> void:
 	piece.fuel = 0.0
 	piece.position = Vector3(0, 100, 0)
 	model._classify_debris(1.0)
-	assert(not piece.background, "Atmosphere and surface approaches stay detailed")
+	assert(not piece.background, "Surface approaches stay detailed")
+	piece.position = Vector3(0, 40000, 0)
+	piece.velocity = model.state.velocity
+	model.state.position = Vector3(0, 50000, 0)
+	model._classify_debris(1.0 / 15.0)
+	assert(piece.background, "Distant debris high in the atmosphere does not force craft substeps")
+	model.state.position = Vector3(0, Flight.ATMOSPHERE_HEIGHT + 30000.0, 0)
 
 	var world := World.new()
 	root.add_child(world)

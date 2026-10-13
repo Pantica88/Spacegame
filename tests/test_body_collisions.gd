@@ -57,7 +57,16 @@ func _initialize() -> void:
 	# Adaptive stepping uses relative velocity: a shared orbital speed is harmless.
 	a = body(Vector3(-3,0,0),Vector3(1500,0,0))
 	b = body(Vector3(3,0,0),Vector3(-1500,0,0))
-	check(Collision.step_limit([a,b],1.0/60.0)<.0001,"Fast nearby bodies force anti-tunneling substeps")
+	var approach := Collision.step_limit([a,b],1.0/60.0)
+	check(approach <= .001 and approach > .0001,"Separated bodies advance only as far as their enclosing bounds")
+	a.position.x = -1.50001
+	b.position.x = 1.50001
+	check(Collision.step_limit([a,b],1.0/60.0)<.0001,"Fast bodies near contact force anti-tunneling substeps")
+	a.position = Vector3.ZERO
+	b.position = Vector3(0,0,10000)
+	check(Collision.step_limit([a,b],10.0)>3.0,"Distant debris does not force contact-sized steps throughout empty space")
+	a.position = Vector3(-3,0,0)
+	b.position = Vector3(3,0,0)
 	b.velocity = a.velocity
 	check(is_equal_approx(Collision.step_limit([a,b],1.0/60.0),1.0/60.0),"Co-moving orbital bodies do not force unnecessary tiny steps")
 	# Full flight integration: two boosters would exchange sides in one old step.

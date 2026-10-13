@@ -41,6 +41,8 @@ func _observe_loading() -> void:
 func _run() -> void:
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
+	# Exercise optional heating warmup even while normal gameplay disables it.
+	game.world.aerothermal_effects_enabled = true
 	game.set_physics_process(false)
 	game.design = game.Parts.default_design()
 	var craft = game.Parts.Craft.migrate(game.design)
@@ -62,6 +64,8 @@ func _run() -> void:
 	check(not game.world._chute.visible and not game.world._parachute_module.opened, "Warmup leaves parachute packed")
 	check(game.world._planet.mesh == game.flight.terrain.render_mesh_for_lod(game.world._planet_lod), "Launch terrain mesh is restored")
 	check(game.flight.terrain._render_meshes.size() == game.flight.terrain.RENDER_LODS.size(), "All flight terrain detail levels are prepared")
+	for body in game.flight._debris_surfaces(game.flight.simulation_time()):
+		check(body.terrain.collision != null, "Home and moon contacts are prepared under the launch cover")
 	if DisplayServer.get_name() != "headless":
 		check(covered_workshop, "Cover renders before craft rollout")
 		check(drew_wake and drew_map and drew_system and drew_background, "Warmup renders wake, local map, system map and distant background")

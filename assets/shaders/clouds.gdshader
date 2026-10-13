@@ -1,5 +1,18 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, depth_test_disabled, shadows_disabled, fog_disabled;
+// Reference 1 is reserved for pixels requiring scene-depth-aware integration.
+// The classifier writes no color. The two color passes are complementary, so
+// no pixel blends the reduced cloud and then blends the same cloud again.
+#ifdef CLOUD_SPLIT_MASK
+stencil_mode write, compare_always, 1;
+#endif
+#ifdef CLOUD_SPLIT_CHEAP
+stencil_mode read, compare_not_equal, 1;
+#define CLOUD_NO_MARCH
+#endif
+#ifdef CLOUD_SPLIT_DETAIL
+stencil_mode read, compare_equal, 1;
+#endif
 #include "res://assets/shaders/clouds_volume.gdshaderinc"
 #include "res://assets/shaders/renderer_color.gdshaderinc"
 
@@ -15,6 +28,15 @@ uniform bool lowres_enabled = false;
 // Share of each pixel integrated here at full resolution on top of the reduced
 // pass: crossfades between the two as the camera climbs (cloud_layer.gd).
 uniform float full_blend = 0.0;
+#ifdef CLOUD_BUFFERED
+// Opt-in compute march (cloud_compute_pass.gd): float targets integrated
+// against scene depth. Light is premultiplied, in the legacy working space.
+uniform sampler2D cloud_buffer_light : filter_nearest, repeat_disable;
+// Clip used (km, 1e20 where geometry did not cut the clouds), contribution
+// mean (km, -1 when empty), spread (km), front (km).
+uniform sampler2D cloud_buffer_depth : filter_nearest, repeat_disable;
+uniform bool buffered_enabled = false;
+#endif
 
 void vertex() {
 	POSITION = vec4(VERTEX.xy, 1.0, 1.0);
@@ -64,8 +86,68 @@ bool clouds_beyond(vec4 segments, float clip) {
 	return clip >= segments.y || (segments.w >= segments.y && clip >= segments.z);
 }
 
+#ifdef CLOUD_BUFFERED
+// Bilinear upsampling of the compute march, accepted only where every
+// contributing texel integrated against compatible geometry: both clips lie
+// beyond the clouds, or both cut them at nearly the same distance. Otherwise
+// the caller marches this pixel afresh. Applies the legacy haze to the
+// upsampled light, as integrate_clouds() does, at the contribution mean.
+bool buffered_clouds(vec2 uv, vec3 ray, bool pixel_beyond, float clip, out vec4 result) {
+	result = vec4(0.0);
+	ivec2 size = textureSize(cloud_buffer_light, 0);
+	vec2 position = uv * vec2(size) - 0.5;
+	vec2 base = floor(position);
+	vec2 f = position - base;
+	vec4 light = vec4(0.0);
+	float depth_sum = 0.0;
+	float depth_weight = 0.0;
+	for (int i = 0; i < 4; i++) {
+		ivec2 offset = ivec2(i & 1, i >> 1);
+		vec2 w2 = mix(1.0 - f, f, vec2(offset));
+		float weight = w2.x * w2.y;
+		if (weight <= 0.0) { continue; }
+		ivec2 texel = clamp(ivec2(base) + offset, ivec2(0), size - 1);
+		vec4 depth = texelFetch(cloud_buffer_depth, texel, 0);
+		bool texel_beyond = depth.x >= 1e19;
+		bool compatible = pixel_beyond ? texel_beyond
+			: !texel_beyond && abs(depth.x - clip) <= clip * 0.02 + 0.002;
+		if (!compatible) { return false; }
+		vec4 sampled = texelFetch(cloud_buffer_light, texel, 0);
+		light += sampled * weight;
+		if (depth.y >= 0.0) {
+			depth_sum += depth.y * (1.0 - sampled.a) * weight;
+			depth_weight += (1.0 - sampled.a) * weight;
+		}
+	}
+	float opacity = 1.0 - light.a;
+	if (opacity < 0.005) { return true; }
+	vec3 transmission;
+	vec3 haze = scatter_air(camera_planet_km, ray, depth_sum / max(depth_weight, 1e-6), transmission);
+	result = vec4(light.rgb / opacity * transmission + haze, opacity);
+	return true;
+}
+#endif
+
+#ifdef CLOUD_SPLIT_MASK
+bool needs_detail(vec4 segments, float clip, bool lowres_safe) {
+	if (clip <= segments.x) { return false; }
+	return !(lowres_enabled && (lowres_safe || clip >= 1e19) && clouds_beyond(segments, clip) && full_blend <= 0.0);
+}
+#else
 vec4 shade_clouds(vec3 ray, vec4 segments, float clip, vec2 uv, vec2 frag, bool lowres_safe) {
 	if (clip <= segments.x) { return vec4(0.0); }
+#ifdef CLOUD_NO_MARCH
+	return upsample_clouds(uv);
+#elif defined(CLOUD_BUFFERED)
+	vec4 buffered;
+	if (buffered_enabled && buffered_clouds(uv, ray, clouds_beyond(segments, clip), clip, buffered)) {
+		if (full_blend <= 0.0) { return buffered; }
+		vec4 full = integrate_clouds(ray, clip, frag);
+		vec4 mixed = mix(vec4(buffered.rgb * buffered.a, buffered.a), vec4(full.rgb * full.a, full.a), full_blend);
+		return vec4(mixed.rgb / max(mixed.a, 1e-5), mixed.a);
+	}
+	return integrate_clouds(ray, clip, frag);
+#else
 	// The reduced pass ignores scene depth. It is exact wherever geometry lies
 	// beyond every cloud segment; only pixels whose geometry sits inside the
 	// shell (a craft flying through cloud) integrate here at full resolution.
@@ -84,7 +166,9 @@ vec4 shade_clouds(vec3 ray, vec4 segments, float clip, vec2 uv, vec2 frag, bool 
 		return vec4(mixed.rgb / max(mixed.a, 1e-5), mixed.a);
 	}
 	return integrate_clouds(ray, clip, frag);
+#endif
 }
+#endif
 
 void fragment() {
 	vec3 ray = cloud_view_ray(SCREEN_UV, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
@@ -109,6 +193,7 @@ void fragment() {
 	// integrate here carry cloud from rays that run on past the hills. Bilinear
 	// upsampling would bleed that onto terrain as dashes below the horizon.
 	bool lowres_safe = true;
+#if !defined(CLOUD_NO_EDGE) && !defined(CLOUD_BUFFERED)
 	if (lowres_enabled) {
 		vec2 lowres_texel = 1.0 / vec2(textureSize(cloud_lowres, 0));
 		// Authored decks fill only the lower part of the shell, so their horizon
@@ -130,9 +215,15 @@ void fragment() {
 			if (!clouds_beyond(near_segments, near)) { lowres_safe = false; }
 		}
 	}
+#endif
 	// Silhouette pixels blend an open-sky pass (0) with a ground pass (1).
 	bool blend = open > 0.0 && open < 1.0;
 	vec2 clips = blend ? vec2(1e20, near_clip) : vec2(clip);
+#ifdef CLOUD_SPLIT_MASK
+	if (!needs_detail(segments, clips.x, lowres_safe) && !(blend && needs_detail(segments, clips.y, lowres_safe))) { discard; }
+	ALBEDO = vec3(0.0);
+	ALPHA = 0.0;
+#else
 	// One call site: inlining the march twice costs every pixel, not only the
 	// silhouette pixels that take this branch.
 	vec4 shaded[2];
@@ -149,5 +240,6 @@ void fragment() {
 	vec4 mixed = display_mix_premultiplied(result.rgb, result.a, texture(scene_color, SCREEN_UV).rgb);
 	ALBEDO = mixed.rgb;
 	ALPHA = mixed.a;
+#endif
 #endif
 }

@@ -1,6 +1,7 @@
 // Cloud volume shared by the reduced-resolution pass and the full-resolution
 // composite. Distances are kilometres in the planet frame.
 #include "res://assets/shaders/atmosphere.gdshaderinc"
+#include "res://assets/shaders/cloud_integral.gdshaderinc"
 
 uniform sampler3D cloud_noise : filter_linear, repeat_enable;
 // Inverted cellular noise: rounded, cauliflower-like billows for edge erosion.
@@ -23,6 +24,9 @@ uniform float cloud_density_scale : hint_range(0.2, 2.5) = 1.0;
 // Kilometres the billow field has slid through the weather; finer detail
 // moves faster, so shapes boil and reform rather than translating rigidly.
 uniform vec3 cloud_evolution_offset = vec3(0.0);
+// Debug: draw the noise taps each pixel spent instead of the clouds
+// (render_cost_overlay.gd). Registered in project.godot [shader_globals].
+global uniform bool cloud_cost_view;
 const int CLOUD_STEPS = 16;
 // The reduced-resolution pass stores (color / range)^(1 / 2.2) in 8 bits.
 const float CLOUD_ENCODE_RANGE = 4.0;
@@ -136,12 +140,16 @@ vec3 authored_density(vec3 p, float height, float detail_weight, bool fine) {
 			* mix(vec3(0.35), vec3(1.0), weather.rgb)
 			* smoothstep(vec3(0.2), vec3(0.6), billow + (weather.rgb - 0.5) * vec3(0.8, 0.9, 1.2));
 		puff_top = mix(0.46, 1.0, smoothstep(0.30, 0.73, billow));
-		puff = outline.r * smoothstep(0.0, 0.11, low_height)
-			* (1.0 - smoothstep(puff_top * 0.48, puff_top, low_height));
-		// Stratocumulus forms broad, shallow cellular banks.
 		cell_top = mix(0.40, 0.66, billow);
-		cells = outline.g * smoothstep(0.03, 0.13, low_height)
-			* (1.0 - smoothstep(cell_top * 0.62, cell_top, low_height));
+		// Disable low cumulus and stratocumulus inside storm formations,
+		// including saved weather.
+		if (weather.a == 0.0) {
+			puff = outline.r * smoothstep(0.0, 0.11, low_height)
+				* (1.0 - smoothstep(puff_top * 0.48, puff_top, low_height));
+			// Stratocumulus forms broad, shallow cellular banks.
+			cells = outline.g * smoothstep(0.03, 0.13, low_height)
+				* (1.0 - smoothstep(cell_top * 0.62, cell_top, low_height));
+		}
 		// Stratus stays level with gentle relief.
 		sheet_top = 0.33 + billow * 0.08;
 		sheet = outline.b * smoothstep(0.02, 0.10, low_height)
@@ -161,8 +169,7 @@ vec3 authored_density(vec3 p, float height, float detail_weight, bool fine) {
 			weather.a + (billow - 0.5) * 0.20)
 			* smoothstep(0.0, 0.04, height)
 			* (1.0 - smoothstep(0.96, tower_top, height));
-		// Outside the tower contour only the faint background below remains;
-		// its density does not use column noise.
+		// Only the tower contour uses column noise.
 		if (fine && tower > 0.0) {
 			float column = texture(cloud_noise, normalize(p) * BODY_RADIUS / 42.0).r;
 			tower *= 0.82 + column * 0.18;
@@ -170,9 +177,7 @@ vec3 authored_density(vec3 p, float height, float detail_weight, bool fine) {
 		// Shape erosion must not manufacture towers in cumulus-only paint or
 		// detached puffs outside the mushroom's softly painted footprint.
 		tower *= smoothstep(0.0, 0.08, weather.a);
-		// Retain a faint continuous background when a low-opacity storm is mixed
-		// into other families, without punching disconnected holes in its stem.
-		tower = max(tower, weather.a * 0.025 * smoothstep(0.0, 0.06, height) * (1.0 - smoothstep(0.85, 1.0, height)));
+		// Leave air outside the tower contour clear, with no background haze.
 	}
 	vec4 densities = vec4(puff, cells, sheet, tower * 1.12);
 	float density = dot(densities, vec4(1.0));
@@ -245,15 +250,40 @@ float sun_optical_depth(vec3 point, float height, float top, float bottom, float
 	return depth * column;
 }
 
-// Integrates the volume along a view ray up to clip_distance (km). Returns the
-// final color (cloud light, attenuated and hazed) and its opacity; zero
-// opacity means nothing to draw.
-vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
+// Banded heat colours for the cost view; the overlay maps them back to ranges.
+vec3 cloud_cost_color(float taps) {
+	const vec3 BANDS[8] = vec3[8](vec3(0.6, 0.6, 0.6), vec3(0.0, 0.1, 1.0), vec3(0.0, 0.8, 1.0), vec3(0.0, 1.0, 0.2),
+		vec3(1.0, 1.0, 0.0), vec3(1.0, 0.45, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 1.0));
+	return BANDS[clamp(int(floor(log2(max(taps, 1.0)) - 2.0)), 0, 7)];
+}
+
+// Storm step boundaries as a function of distance from the camera alone:
+// even STORM_STEP spacing out to STORM_STEP / STORM_GROWTH, then each step
+// STORM_GROWTH longer than the last. 3% growth reaches any shell exit within
+// about 175 steps.
+const float STORM_STEP = 0.2;
+const float STORM_GROWTH = 0.03;
+
+float storm_boundary_after(float d) {
+	const float LINEAR_END = STORM_STEP / STORM_GROWTH;
+	if (d < LINEAR_END) {
+		return min((floor(d / STORM_STEP + 1e-4) + 1.0) * STORM_STEP, LINEAR_END);
+	}
+	float k = floor(log(d / LINEAR_END) / log(1.0 + STORM_GROWTH) + 1e-4) + 1.0;
+	return max(LINEAR_END * pow(1.0 + STORM_GROWTH, k), d + 1e-4);
+}
+
+// Integrates along a normalized camera ray up to clip_distance (km). Returns
+// accumulated source light before atmosphere or display encoding. Define
+// CLOUD_MEASURE_DEPTH before including this file to collect contribution depth
+// and spread as well. The legacy wrapper below retains its original haze math.
+CloudIntegral integrate_cloud_volume(vec3 ray, float clip_distance, vec2 fragcoord) {
+	CloudIntegral result = cloud_integral_empty();
 	float bottom = cloud_bottom_km();
 	vec4 segments = cloud_ray_segments(ray);
 	float start = segments.x;
 	float end = min(segments.y, clip_distance);
-	if (end <= start) { return vec4(0.0); }
+	if (end <= start) { return result; }
 	float gap_start = min(segments.z, end);
 	float gap_end = min(segments.w, end);
 	float cloud_path = end - start - (gap_end - gap_start);
@@ -261,11 +291,7 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 	float sun_cos = dot(ray, sun_direction);
 	// Dual-lobe phase: a bright forward silver lining plus soft back-scatter.
 	float phase = mix(hg_phase(sun_cos, -0.2), hg_phase(sun_cos, 0.5), 0.5);
-	float detail_weight = 1.0 - smoothstep(20.0, 150.0, start);
 	float extinction = cloud_density_scale * (authored_weather ? 1.2 : 3.0);
-	float remaining = 1.0;
-	vec3 cloud_color = vec3(0.0);
-	float weighted_distance = 0.0;
 	vec2 low_interval = sphere_interval(camera_planet_km, ray, bottom + cloud_thickness_km * cloud_deck_fraction);
 	float low_start = clamp(low_interval.x, start, end);
 	float low_end = clamp(low_interval.y, low_start, end);
@@ -274,15 +300,10 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 	float low_path = max(0.0, low_end - low_start
 		- max(0.0, min(low_end, gap_end) - max(low_start, gap_start)));
 	float low_step = max(0.08, low_path / 96.0);
-	// Storm steps grow with distance into the shell rather than dividing the
-	// whole path. Dense storms saturate within the first samples, and a path
+	// Storm steps grow with distance (storm_boundary_after) rather than dividing
+	// the whole path. Dense storms saturate within the first samples, and a path
 	// budget jumps where rays start grazing the deck top or miss the ground,
 	// which moved those samples and drew curved seams across the clouds.
-	// Near steps match the deck's resolution so the sampling rate does not
-	// change where rays enter it; 3% growth reaches any shell exit within
-	// about 175 steps.
-	const float STORM_STEP = 0.2;
-	const float STORM_GROWTH = 0.03;
 #ifdef CLOUD_OCCUPANCY
 	vec2 low_occupied = vec2(start, end);
 	vec2 storm_occupied = vec2(start, end);
@@ -297,10 +318,12 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 		vec2 low_bound = sphere_interval(camera_planet_km, ray, low_radius + max(0.002, low_radius * 0.000002));
 		low_occupied = vec2(max(low_occupied.x, low_bound.x), min(low_occupied.y, low_bound.y));
 		if ((low_occupied.y < start || low_occupied.x > end || low_occupied.y < low_occupied.x)
-			&& (storm_occupied.y < start || storm_occupied.x > end || storm_occupied.y < storm_occupied.x)) { return vec4(0.0); }
+			&& (storm_occupied.y < start || storm_occupied.x > end || storm_occupied.y < storm_occupied.x)) { return result; }
 	}
 #endif
 	float cursor = start;
+	// A traversed but empty ray still has a cost-view color; early culls do not.
+	result.traversed = true;
 	// Quadratic spacing keeps wisps close to the camera resolved during flight.
 	// Stable subpixel jitter breaks slice bands without time-dependent flicker.
 	float jitter = mix(0.3, 0.7, fract(dot(fragcoord, vec2(0.75487766, 0.56984029))));
@@ -315,11 +338,14 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 			if (cursor >= end) { break; }
 			// Fixed world-distance steps prevent the far shell intersection
 			// from shifting every sample and drawing horizontal contour bands.
+			// Boundaries sit on grids measured from the camera, not from the
+			// ray's entry, so samples hold still when the entry jumps from the
+			// deck base to the camera at the cloud floor.
 			a = cursor;
-			float high_step = max(STORM_STEP, (a - start) * STORM_GROWTH);
-			if (a < low_start) { b = min(a + high_step, low_start); }
-			else if (a < low_end) { b = min(a + low_step, low_end); }
-			else { b = a + high_step; }
+			float high_b = storm_boundary_after(a);
+			if (a < low_start) { b = min(high_b, low_start); }
+			else if (a < low_end) { b = min((floor(a / low_step + 1e-4) + 1.0) * low_step, low_end); }
+			else { b = high_b; }
 			b = min(b, end);
 			if (a < gap_start) { b = min(b, gap_start); }
 			cursor = b;
@@ -331,6 +357,9 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 			b = start + cloud_path * u1 * u1;
 		}
 		float distance = mix(a, b, jitter);
+		// Fade fine detail by this sample's distance. Fading by the ray's entry
+		// switched every distant cloud to full detail at the cloud floor.
+		float detail_weight = 1.0 - smoothstep(20.0, 150.0, distance);
 		if (!authored_weather && distance >= gap_start) { distance += gap_end - gap_start; }
 		// Keep the original cursor additions and loop budget, even across empty
 		// intervals: jumping/regridding would shift the samples that do contribute.
@@ -351,10 +380,12 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 			vec3 p1 = camera_planet_km + ray * mix(a, b, 0.75);
 			vec3 f0 = sample_formation(p0, (length(p0) - bottom) / cloud_thickness_km, detail_weight, true);
 			vec3 f1 = sample_formation(p1, (length(p1) - bottom) / cloud_thickness_km, detail_weight, true);
+			result.density_samples += 2.0;
 			float total = max(f0.x + f1.x, 0.0001);
 			formation = vec3((f0.x + f1.x) * 0.5, (f0.yz * f0.x + f1.yz * f1.x) / total);
 		} else {
 			formation = sample_formation(point, height, detail_weight, true);
+			result.density_samples += 1.0;
 		}
 		float density = formation.x * cloud_density_scale;
 		// Empty samples contribute neither extinction nor illumination. Keep
@@ -376,9 +407,10 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 		float sun_shadow = 0.0;
 		if (daylight > 0.0) {
 			float estimate = formation.x * max(top - height, 0.0) * cloud_thickness_km * 0.6;
-			float marched_weight = smoothstep(0.6, 0.9, remaining);
+			float marched_weight = smoothstep(0.6, 0.9, result.transmittance);
 			float optical = estimate;
 			if (marched_weight > 0.0) {
+				result.density_samples += 1.0;
 				optical = mix(estimate, sun_optical_depth(point, height, top, bottom, detail_weight), marched_weight);
 			}
 			sun_shadow = exp(-optical * extinction);
@@ -395,17 +427,26 @@ vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
 		float direct = sun_shadow * (0.15 + 0.55 * phase)
 			+ 0.2 * pow(sun_shadow, 0.25);
 		vec3 light = ambient + sunlight * daylight * direct;
-		float weight = remaining * opacity;
-		cloud_color += light * weight;
-		weighted_distance += distance * weight;
-		remaining *= 1.0 - opacity;
-		if (remaining < 0.025) { break; }
+		// Storm intervals keep the same representative midpoint after combining
+		// their two density taps. Depth measures this quadrature, not a surface.
+		cloud_integral_add(result, light, opacity, distance);
+		if (result.transmittance < 0.025) { break; }
 	}
-	float opacity = 1.0 - remaining;
+	return result;
+}
+
+// Existing presentation interface: unmultiplied, atmospherically hazed color
+// in the renderer's legacy working space, and opacity. Keep its cutoff and
+// cost-view behavior separate from the raw integral and depth validity.
+vec4 integrate_clouds(vec3 ray, float clip_distance, vec2 fragcoord) {
+	CloudIntegral result = integrate_cloud_volume(ray, clip_distance, fragcoord);
+	if (!result.traversed) { return vec4(0.0); }
+	if (cloud_cost_view) { return vec4(cloud_cost_color(result.density_samples), 1.0); }
+	float opacity = 1.0 - result.transmittance;
 	if (opacity < 0.005) { return vec4(0.0); }
 	vec3 transmission;
-	vec3 haze = scatter_air(camera_planet_km, ray, weighted_distance / opacity, transmission);
-	return vec4(cloud_color / opacity * transmission + haze, opacity);
+	vec3 haze = scatter_air(camera_planet_km, ray, result.weighted_distance_km / opacity, transmission);
+	return vec4(result.light / opacity * transmission + haze, opacity);
 }
 
 vec3 cloud_view_ray(vec2 screen_uv, mat4 inv_projection, mat4 inv_view) {

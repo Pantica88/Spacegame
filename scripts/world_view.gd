@@ -1253,12 +1253,10 @@ func _animate_flames(flames: Array[Node3D], power: float) -> void:
 
 
 var _heated_meshes: Array[MeshInstance3D] = []
+var aerothermal_effects_enabled := true
 var _heat_material: ShaderMaterial
-var _heat_halo_material: ShaderMaterial
 const AerothermalWake = preload("res://scripts/aerothermal_wake.gd")
 var _heat_trail: MeshInstance3D
-var _heat_outer_material: ShaderMaterial
-var _heat_flow_phase := 0.0
 var _exhaust_mesh: ArrayMesh
 
 func _shared_exhaust_mesh() -> ArrayMesh:
@@ -2137,7 +2135,16 @@ func _collect_heated_meshes(node: Node) -> void:
 
 
 func _update_aero_glow(state: Dictionary, delta: float) -> void:
-	var intensity := float(state.get("heat_glow", 0.0))
+	if not aerothermal_effects_enabled:
+		_clear_aero_glow()
+		return
+	var retained_heat := float(state.get("heat_glow", 0.0))
+	var heating := maxf(float(state.get("heating_rate", 0.0)), 0.0)
+	var flow_strength := clampf(heating / 180.0, 0.0, 1.0)
+	# Use one intensity for hull color and wake. Fast ascent must not leave silver metal under entry fire.
+	# Retained heat preserves the glow as airflow fades; physics is unchanged.
+	var airflow_heat := float(state.get("plasma_glow", smoothstep(40.0, 180.0, heating)))
+	var intensity := clampf(maxf(retained_heat, airflow_heat), 0.0, 1.0)
 	var active := intensity > 0.001 and str(state.get("status", "ready")) == "flying"
 	if not active:
 		if not _heated_meshes.is_empty(): _clear_aero_glow()
@@ -2146,15 +2153,6 @@ func _update_aero_glow(state: Dictionary, delta: float) -> void:
 		_heat_material = ShaderMaterial.new()
 		_heat_material.shader = preload("res://assets/shaders/aerothermal.gdshader")
 		_heat_material.render_priority = 2
-		_heat_halo_material = ShaderMaterial.new()
-		_heat_halo_material.shader = preload("res://assets/shaders/aerothermal_halo.gdshader")
-		_heat_halo_material.render_priority = 2
-		_heat_material.next_pass = _heat_halo_material
-		_heat_outer_material = ShaderMaterial.new()
-		_heat_outer_material.shader = _heat_halo_material.shader
-		_heat_outer_material.render_priority = 2
-		_heat_outer_material.set_shader_parameter("layer", 1.0)
-		_heat_halo_material.next_pass = _heat_outer_material
 	if _heated_meshes.is_empty(): _collect_heated_meshes(_rocket)
 	# Staged parts must stop borrowing the controlled vessel's heat state.
 	for index in range(_heated_meshes.size() - 1, -1, -1):
@@ -2169,23 +2167,8 @@ func _update_aero_glow(state: Dictionary, delta: float) -> void:
 	var direction := flow.normalized() if flow.length_squared() > 0.01 else Vector3.ZERO
 	_heat_material.set_shader_parameter("intensity", intensity)
 	_heat_material.set_shader_parameter("air_direction", direction)
-	_heat_halo_material.set_shader_parameter("intensity", intensity)
-	_heat_halo_material.set_shader_parameter("air_direction", direction)
 	# Residual hot metal remains luminous in vacuum; airflow flames do not.
-	var flow_strength := clampf(float(state.get("heating_rate", 0.0)) / 180.0, 0.0, 1.0)
-	_heat_halo_material.set_shader_parameter("flow_strength", flow_strength)
-	_heat_flow_phase = fmod(_heat_flow_phase + maxf(delta, 0.0) * (5.0 + flow.length() * 0.055), 4096.0)
-	for material in [_heat_halo_material, _heat_outer_material]:
-		material.set_shader_parameter("intensity", intensity)
-		material.set_shader_parameter("air_direction", direction)
-		material.set_shader_parameter("flow_strength", flow_strength)
-		material.set_shader_parameter("flow_phase", _heat_flow_phase)
-		material.set_shader_parameter("airspeed", flow.length())
-		material.set_shader_parameter("hull_origin", _rocket.global_position)
 	_update_heat_trail(direction, flow.length(), intensity * flow_strength, delta)
-	if is_instance_valid(_heat_trail):
-		for material in [_heat_halo_material, _heat_outer_material]:
-			_heat_trail.share_hull(material, _rocket)
 
 
 

@@ -97,8 +97,13 @@ func _ready() -> void:
 	design = profile.data.design.duplicate(true)
 	design = Parts.Craft.project(Parts.Craft.load_craft(design), design)
 	world = WorldView.new()
+	# Disable body heating visuals for the flight performance comparison.
+	world.aerothermal_effects_enabled = false
 	world.set_design(design)
 	add_child(world)
+	var cost_overlay := preload("res://scripts/render_cost_overlay.gd").new()
+	cost_overlay.world = world
+	add_child(cost_overlay)
 	terrain_settings = PlanetSurface.home().definition.duplicate()
 	sound = FlightAudio.new()
 	add_child(sound)
@@ -770,6 +775,7 @@ func _roll_out() -> void:
 ## Prepare CPU resources and draw each rendering path under the launch cover.
 ## The caller keeps simulation paused until all viewports have been restored.
 func _prewarm_flight_effects() -> void:
+	flight.prepare_terrain_contacts()
 	world.prepare_impact_pool()
 	var terrain = PlanetSurface.home()
 	var launch_mesh: Mesh = world._planet.mesh

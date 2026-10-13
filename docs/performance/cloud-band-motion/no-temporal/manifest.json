@@ -1,0 +1,140 @@
+{
+	"captures": [
+		{
+			"altitude_m": 8166.26768581138,
+			"file": "start.png",
+			"frame": 0,
+			"position": [
+				-450.2,
+				8166.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 8174.26768360566,
+			"file": "up_001.png",
+			"frame": 1,
+			"position": [
+				-450.2,
+				8174.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 8294.26765052613,
+			"file": "up_016.png",
+			"frame": 16,
+			"position": [
+				-450.2,
+				8294.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 8422.26761525578,
+			"file": "up_032.png",
+			"frame": 32,
+			"position": [
+				-450.2,
+				8422.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 8678.26754475967,
+			"file": "up_064.png",
+			"frame": 64,
+			"position": [
+				-450.2,
+				8678.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 8934.2674743227,
+			"file": "up_096.png",
+			"frame": 96,
+			"position": [
+				-450.2,
+				8934.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 9126.26742153382,
+			"file": "up_120.png",
+			"frame": 120,
+			"position": [
+				-450.2,
+				9126.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 8158.26768801722,
+			"file": "down_001.png",
+			"frame": 1,
+			"position": [
+				-450.2,
+				8158.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 8038.26772111142,
+			"file": "down_016.png",
+			"frame": 16,
+			"position": [
+				-450.2,
+				8038.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 7910.26775642636,
+			"file": "down_032.png",
+			"frame": 32,
+			"position": [
+				-450.2,
+				7910.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 7654.26782710082,
+			"file": "down_064.png",
+			"frame": 64,
+			"position": [
+				-450.2,
+				7654.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 7398.26789783488,
+			"file": "down_096.png",
+			"frame": 96,
+			"position": [
+				-450.2,
+				7398.1,
+				35.8
+			]
+		},
+		{
+			"altitude_m": 7206.26795092458,
+			"file": "down_120.png",
+			"frame": 120,
+			"position": [
+				-450.2,
+				7206.1,
+				35.8
+			]
+		}
+	],
+	"metres_per_frame": 8.0,
+	"pitch": -0.197,
+	"temporal": false,
+	"time": 0.0,
+	"weather": 167.7,
+	"yaw": 1.427
+}

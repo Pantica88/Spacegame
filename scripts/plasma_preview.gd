@@ -42,7 +42,7 @@ func _process(delta: float) -> void:
 		"orientation": orientation, "status": "flying", "simulation_time": 0.0,
 		"engine_on": false, "fuel": 0.0, "boosters_attached": craft_index == 2,
 		"capsule_only": craft_index == 1, "chute_deployed": false,
-		"heat_glow": heat, "heating_rate": 180.0 if airspeed > 0.0 else 0.0,
+		"heat_glow": heat, "plasma_glow": heat, "heating_rate": 180.0 if airspeed > 0.0 else 0.0,
 		"air_velocity": travel_velocity, "velocity": travel_velocity}, dt)
 	readout.text = "%s  •  %.0f m/s\nHeat %.0f%%  •  Turn %.0f°/s\nTravel heading %+.0f°" % ["PAUSED" if paused else "RUNNING", airspeed, heat * 100.0, turn_rate, travel_heading]
 

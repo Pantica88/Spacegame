@@ -1,0 +1,12 @@
+ASCENT engine=4.5.1-stable (custom_build) viewport=(1920, 1008) parts=78 stages=8 stencil=true compare=true
+ASCENT t=5.0 alt=211 speed=85 heat=0.00 heating=0.2 stage=1 mode=normal
+ASCENT t=10.0 alt=867 speed=178 heat=0.00 heating=1.7 stage=1 mode=normal
+ASCENT t=15.0 alt=2005 speed=278 heat=0.00 heating=6.2 stage=1 mode=normal
+ASCENT t=20.0 alt=3660 speed=385 heat=0.00 heating=15.2 stage=1 mode=no_wake
+ASCENT t=25.0 alt=5877 speed=500 heat=0.00 heating=29.6 stage=1 mode=normal
+ASCENT t=30.0 alt=8649 speed=605 heat=0.00 heating=44.7 stage=1 mode=no_wake
+ASCENT t=35.0 alt=11938 speed=709 heat=0.00 heating=57.9 stage=1 mode=normal
+ASCENT t=40.0 alt=15784 speed=833 heat=0.01 heating=69.4 stage=1 mode=normal
+ASCENT t=45.0 alt=20298 speed=983 heat=0.14 heating=79.7 stage=1 mode=no_wake
+ASCENT t=50.0 alt=25672 speed=1165 heat=0.32 heating=86.4 stage=1 mode=normal
+ASCENT DONE /tmp/aphelion-wake-compare-i6n1wgr_/run1/results.json

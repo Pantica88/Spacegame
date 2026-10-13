@@ -12,8 +12,7 @@ func _run() -> void:
 	world.set_mode("flight")
 	world.sync_flight({"position": Vector3(0, 12000, 0), "altitude": 12000.0,
 		"status": "flying", "heat_glow": 0.8, "heating_rate": 180.0, "air_velocity": Vector3(1000, 0, 0)}, 0.05)
-	var materials: Array[ShaderMaterial] = [world._heat_material, world._heat_halo_material,
-		world._heat_outer_material, world._heat_trail.material_override]
+	var materials: Array[ShaderMaterial] = [world._heat_material, world._heat_trail.material_override]
 	var flame: Node3D = world._engine_flames.values()[0][0]
 	for child in flame.get_children():
 		if child is MeshInstance3D: materials.append(child.material_override)
@@ -74,7 +73,7 @@ func _run() -> void:
 		camera.queue_free()
 	world.queue_free()
 	await process_frame
-	print("PASS: exhaust, nozzle glow, hull heat, halos and wake composite after clouds with solid depth occlusion")
+	print("PASS: exhaust, nozzle glow, hull heat and wake composite after clouds with solid depth occlusion")
 	quit()
 
 func _capture() -> Image:

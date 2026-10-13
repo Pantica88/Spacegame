@@ -22,7 +22,9 @@ func _run() -> void:
 	for pose in ["oblique", "broadside", "reverse", "cold", "vacuum"]:
 		if pose == "broadside": state.air_velocity = Vector3(0, -800, 0)
 		if pose == "reverse": state.air_velocity = Vector3(-800, 0, 0)
-		if pose == "cold": state.heat_glow = 0.0
+		if pose == "cold":
+			state.heat_glow = 0.0
+			state.heating_rate = 0.0
 		if pose == "vacuum":
 			state.heat_glow = 0.7
 			state.heating_rate = 0.0
@@ -41,7 +43,6 @@ func _run() -> void:
 			assert(not world._heated_meshes.has(world._heat_trail), "Wake is excluded from hull overlays")
 		if pose == "vacuum":
 			assert(not world._heat_trail.visible, "Residual heat in vacuum has no wake")
-			assert(world._heat_halo_material.get_shader_parameter("flow_strength") == 0.0)
 		if DisplayServer.get_name() != "headless":
 			await process_frame
 			await process_frame
@@ -62,6 +63,7 @@ func _run() -> void:
 						var after := moved.get_pixel(x,y)
 						if absf(before.r-after.r)+absf(before.g-after.g)+absf(before.b-after.b) > 0.08: changed_pixels += 1
 				assert(changed_pixels > 100, "Flow visibly moves across the hull and wake in 50 ms")
+	_test_ascent_entry_fire(state)
 	state.heating_rate = 180.0
 	state.air_velocity = Vector3(1000, 0, 0)
 	world.sync_flight(state, 0.1)
@@ -97,6 +99,29 @@ func _run() -> void:
 	world.free()
 	print("PASS: smooth plasma turns, continuous motion, hull clearance, cooling, staging and rebuild")
 	quit(0)
+
+
+func _test_ascent_entry_fire(state: Dictionary) -> void:
+	state.orientation = Basis.IDENTITY
+	state.heating_rate = 180.0
+	state.air_velocity = Vector3.UP * 1000.0
+	state.heat_glow = 0.0
+	world.sync_flight(state, 0.0)
+	assert(world._heat_trail.visible, "Rapid ascent has fire before the hull warms up")
+	var ascent_strength: float = world._heat_trail._material.get_shader_parameter("strength")
+	var ascent_hull: float = world._heat_material.get_shader_parameter("intensity")
+	assert(ascent_strength > 0.99 and ascent_hull > 0.99, "Strong ascent heating produces full body fire")
+	assert(world._heat_material.next_pass == null, "Hull heating has no additional flame shell passes")
+	state.air_velocity = Vector3.DOWN * 1000.0
+	state.heat_glow = 1.0
+	world.sync_flight(state, 0.0)
+	assert(is_equal_approx(world._heat_trail._material.get_shader_parameter("strength"), ascent_strength), "Equal heating gives ascent and entry the same wake strength")
+	assert(is_equal_approx(world._heat_material.get_shader_parameter("intensity"), ascent_hull), "Hull heating matches on ascent and entry")
+	state.heating_rate = 0.0
+	world.sync_flight(state, 0.0)
+	assert(not world._heat_trail.visible, "Fire stops when atmospheric heating stops")
+	assert(world._heat_material.get_shader_parameter("intensity") == 1.0, "Hot metal continues glowing after leaving the atmosphere")
+	state.heat_glow = 0.7
 
 
 func _test_turn_transitions(state: Dictionary) -> void:

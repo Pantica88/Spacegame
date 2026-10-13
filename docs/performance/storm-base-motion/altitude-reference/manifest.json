@@ -1,0 +1,353 @@
+{
+	"captures": [
+		{
+			"altitude_m": 3500.14618818439,
+			"file": "start.png",
+			"frame": 0,
+			"position": [
+				127.0,
+				3500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 3800.14611555042,
+			"file": "forward_012.png",
+			"frame": 12,
+			"position": [
+				127.0,
+				3800.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 4000.14606716775,
+			"file": "forward_020.png",
+			"frame": 20,
+			"position": [
+				127.0,
+				4000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 4100.1460429884,
+			"file": "forward_024.png",
+			"frame": 24,
+			"position": [
+				127.0,
+				4100.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 4200.14601881721,
+			"file": "forward_028.png",
+			"frame": 28,
+			"position": [
+				127.0,
+				4200.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 4600.14592221193,
+			"file": "forward_044.png",
+			"frame": 44,
+			"position": [
+				127.0,
+				4600.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 5000.14582573448,
+			"file": "forward_060.png",
+			"frame": 60,
+			"position": [
+				127.0,
+				5000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 5300.14575346,
+			"file": "forward_072.png",
+			"frame": 72,
+			"position": [
+				127.0,
+				5300.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 6000.14558509795,
+			"file": "forward_100.png",
+			"frame": 100,
+			"position": [
+				127.0,
+				6000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 6700.1454171245,
+			"file": "forward_128.png",
+			"frame": 128,
+			"position": [
+				127.0,
+				6700.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 7000.14534525445,
+			"file": "forward_140.png",
+			"frame": 140,
+			"position": [
+				127.0,
+				7000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 8000.14510619978,
+			"file": "forward_180.png",
+			"frame": 180,
+			"position": [
+				127.0,
+				8000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 10000.1446304418,
+			"file": "forward_260.png",
+			"frame": 260,
+			"position": [
+				127.0,
+				10000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 12000.1441577935,
+			"file": "forward_340.png",
+			"frame": 340,
+			"position": [
+				127.0,
+				12000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 15000.1434545849,
+			"file": "forward_460.png",
+			"frame": 460,
+			"position": [
+				127.0,
+				15000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 16000.1432217041,
+			"file": "forward_500.png",
+			"frame": 500,
+			"position": [
+				127.0,
+				16000.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 15700.1432914889,
+			"file": "backward_012.png",
+			"frame": 12,
+			"position": [
+				127.0,
+				15700.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 15500.1433380499,
+			"file": "backward_020.png",
+			"frame": 20,
+			"position": [
+				127.0,
+				15500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 15400.1433613418,
+			"file": "backward_024.png",
+			"frame": 24,
+			"position": [
+				127.0,
+				15400.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 15300.1433846412,
+			"file": "backward_028.png",
+			"frame": 28,
+			"position": [
+				127.0,
+				15300.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 14900.1434779146,
+			"file": "backward_044.png",
+			"frame": 44,
+			"position": [
+				127.0,
+				14900.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 14500.1435713095,
+			"file": "backward_060.png",
+			"frame": 60,
+			"position": [
+				127.0,
+				14500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 14200.1436414354,
+			"file": "backward_072.png",
+			"frame": 72,
+			"position": [
+				127.0,
+				14200.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 13500.1438053295,
+			"file": "backward_100.png",
+			"frame": 100,
+			"position": [
+				127.0,
+				13500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 12800.143969598,
+			"file": "backward_128.png",
+			"frame": 128,
+			"position": [
+				127.0,
+				12800.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 12500.1440401137,
+			"file": "backward_140.png",
+			"frame": 140,
+			"position": [
+				127.0,
+				12500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 11500.1442756657,
+			"file": "backward_180.png",
+			"frame": 180,
+			"position": [
+				127.0,
+				11500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 9500.14474908856,
+			"file": "backward_260.png",
+			"frame": 260,
+			"position": [
+				127.0,
+				9500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 7500.14522562874,
+			"file": "backward_340.png",
+			"frame": 340,
+			"position": [
+				127.0,
+				7500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 4500.14594635123,
+			"file": "backward_460.png",
+			"frame": 460,
+			"position": [
+				127.0,
+				4500.0,
+				-400.4
+			],
+			"temporal_active": false
+		},
+		{
+			"altitude_m": 3500.14618818439,
+			"file": "backward_500.png",
+			"frame": 500,
+			"position": [
+				127.0,
+				3500.0,
+				-400.4
+			],
+			"temporal_active": false
+		}
+	],
+	"frames_per_leg": 500,
+	"metres_per_frame": 25.0,
+	"motion": "%g metres %s, then return without settling",
+	"pitch": 0.095,
+	"temporal": false,
+	"time": 0.0,
+	"weather": 24.1,
+	"yaw": 0.0
+}

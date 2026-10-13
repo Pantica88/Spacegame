@@ -74,23 +74,37 @@ static func apply_impulse(a: Dictionary, b: Dictionary, ra: Vector3, rb: Vector3
 		body.landed = false
 		body.settle_time = 0.0
 
-static func resolve(a: Dictionary, b: Dictionary) -> void:
+## Returns whether the contact changed either body: an impulse or an overlap
+## correction beyond resting slop.
+static func resolve(a: Dictionary, b: Dictionary) -> bool:
 	# Most detached stages are far apart. Reject disjoint bounding spheres
 	# before allocating shape endpoints and solving individual contacts.
 	if a.has("bound") and b.has("bound"):
 		var reach: float = a.bound + b.bound
 		if Vector3(a.position).distance_squared_to(b.position) > reach * reach:
-			return
+			return false
+	var touched := false
+	var basis_a: Basis = a.orientation
+	var basis_b: Basis = b.orientation
 	for sa in a.shapes:
+		# Long stages have large bounds; most of their shapes are still apart.
+		var center_a: Vector3 = Vector3(a.position) + basis_a * Vector3(sa.offset)
+		var extent_a := maxf(float(sa.length) * .5, float(sa.radius))
 		for sb in b.shapes:
+			var reach := extent_a + maxf(float(sb.length) * .5, float(sb.radius))
+			if center_a.distance_squared_to(Vector3(b.position) + basis_b * Vector3(sb.offset)) > reach * reach: continue
 			var hit := contact(a,sa,b,sb)
 			if hit.is_empty(): continue
+			# Resting contacts keep .0001 of overlap and need no further passes.
+			touched = touched or float(hit.depth) > .0002
 			var n: Vector3 = hit.normal
 			var ra: Vector3 = hit.point-a.position
 			var rb: Vector3 = hit.point-b.position
 			var relative: Vector3 = b.velocity+omega(b).cross(rb)-a.velocity-omega(a).cross(ra)
 			var closing := relative.dot(n)
 			if closing < 0.0:
+				# Rounding-level closing in a settled pair needs no further passes.
+				touched = touched or closing < -.001
 				var restitution := .15 if closing < -1.0 else 0.0
 				var magnitude := -(1.0+restitution)*closing/effective_mass(a,b,ra,rb,n)
 				apply_impulse(a,b,ra,rb,n*magnitude)
@@ -108,20 +122,49 @@ static func resolve(a: Dictionary, b: Dictionary) -> void:
 			if hit.depth > .002:
 				a.landed = false
 				b.landed = false
+	return touched
+
+## Index pairs (as Vector2i) whose bounding spheres lie within margin of each other.
+static func candidate_pairs(bodies: Array, margin: float) -> Array[Vector2i]:
+	var pairs: Array[Vector2i] = []
+	var positions := PackedVector3Array()
+	var bounds := PackedFloat64Array()
+	for body in bodies:
+		positions.append(body.position)
+		bounds.append(float(body.bound))
+	for i in range(bodies.size()):
+		for j in range(i+1,bodies.size()):
+			var reach := bounds[i]+bounds[j]+margin
+			if positions[i].distance_squared_to(positions[j]) <= reach*reach: pairs.append(Vector2i(i,j))
+	return pairs
 
 static func step_limit(bodies: Array, requested: float) -> float:
 	var result := requested
+	# Per-body values once, not per pair: this runs every craft substep.
+	var positions := PackedVector3Array()
+	var velocities := PackedVector3Array()
+	var bounds := PackedFloat64Array()
+	var tips := PackedFloat64Array()
+	var radii := PackedFloat64Array()
+	for body in bodies:
+		positions.append(body.position)
+		velocities.append(body.velocity)
+		bounds.append(float(body.bound))
+		tips.append(omega(body).length()*float(body.bound))
+		radii.append(float(body.min_radius))
 	for i in range(bodies.size()):
 		for j in range(i+1,bodies.size()):
-			var a: Dictionary = bodies[i]
-			var b: Dictionary = bodies[j]
-			var relative: Vector3 = b.velocity-a.velocity
-			var tip_speed := omega(a).length()*float(a.bound)+omega(b).length()*float(b.bound)
-			var speed := relative.length()+tip_speed
+			var speed := (velocities[j]-velocities[i]).length()+tips[i]+tips[j]
 			if speed < .001: continue
-			var reach: float = a.bound+b.bound+speed*requested
-			if Vector3(a.position).distance_squared_to(b.position) > reach*reach: continue
-			# Limit translation plus rotational tip travel to a quarter of the
-			# smallest collider radius. Recomputed after every impact/substep.
-			result = minf(result,.25*minf(a.min_radius,b.min_radius)/speed)
+			var reach := bounds[i]+bounds[j]+speed*requested
+			var distance_squared := positions[i].distance_squared_to(positions[j])
+			if distance_squared > reach*reach: continue
+			# Cross empty space before switching to contact-sized steps. Using
+			# the tiny contact step for the entire swept reach makes distant
+			# debris force thousands of substeps during a single warp tick.
+			# Bounds enclose every orientation; including tip speed makes this
+			# approach conservative for rotating bodies too.
+			var gap := sqrt(distance_squared) - bounds[i] - bounds[j]
+			var travel := maxf(gap, .25 * minf(radii[i], radii[j]))
+			result = minf(result, travel / speed)
 	return result

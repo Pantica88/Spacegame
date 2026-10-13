@@ -1,16 +1,36 @@
 extends MeshInstance3D
 ## Composites procedural or painted cloud volumes. The volume is integrated in
-## a reduced-resolution offscreen pass and upsampled here; only pixels whose
-## nearby geometry sits inside the cloud shell integrate at full resolution.
+## a reduced-resolution offscreen pass. Forward+ classifies scene-depth and
+## silhouette pixels into stencil, upsamples the rest with a cheap shader,
+## and integrates only the marked pixels in a separate full-detail pass.
 const CLOUD_SHADER = preload("res://assets/shaders/clouds.gdshader")
 const LOWRES_SHADER = preload("res://assets/shaders/clouds_lowres.gdshader")
 const RESOLVE_SHADER = preload("res://assets/shaders/clouds_resolve.gdshader")
+const ComputePass = preload("res://scripts/cloud_compute_pass.gd")
 ## Order in which each 2x2 block's pixels are marched; every pixel is fresh at
 ## least once every four frames.
 const TEMPORAL_OFFSETS := [Vector2(0, 0), Vector2(1, 1), Vector2(1, 0), Vector2(0, 1)]
 ## Rotation between frames beyond which reprojected history is discarded.
 const TEMPORAL_MAX_TURN := deg_to_rad(15.0)
 static var _bounded_shaders := {}
+## BUFFERED is the opt-in compute prototype (docs/CLOUD_RENDERER_PLAN.md, step
+## 2): a fresh depth-clipped march into float targets, never selected by default.
+enum CompositeVariant { SPLIT, ORIGINAL, NO_MARCH, NO_EDGE, NEITHER, BUFFERED }
+const COMPOSITE_VARIANT_NAMES := ["stencil split", "original", "no full-detail march", "no edge check", "neither", "buffered prototype"]
+static var _composite_shaders := {}
+var composite_variant := CompositeVariant.SPLIT
+var _composite_bounded := false
+# Every volume uniform as last set, for the compute pass's parameter buffer.
+var _volume_values := {}
+var _volume_bounded := false
+var _compute_pass: CompositorEffect
+var _compositor: Compositor
+var _compositor_camera: Camera3D
+var _owned_composite_shader: Shader
+var _stencil_mask: MeshInstance3D
+var _detail_pass: MeshInstance3D
+var _mask_material: ShaderMaterial
+var _detail_material: ShaderMaterial
 ## Fraction of the view resolution integrated offscreen. 1.0 integrates every
 ## pixel in the composite instead.
 var resolution_scale := 0.5
@@ -33,6 +53,11 @@ var _far_offscreen := false
 ## Marches a quarter of the reduced pass each frame and reprojects the rest
 ## from the previous frame. Comparisons disable it to march every pixel.
 var temporal := true
+# A single depth sphere cannot represent both low clouds and distant storm
+# towers during atmospheric flight. March fresh half-resolution frames for
+# authored storm weather throughout the atmosphere, not only inside the deck.
+# Orbital views retain temporal reconstruction and its distant-view filtering.
+var _fresh_atmospheric_storms := false
 var _resolve: Array[SubViewport] = []
 var _resolve_cameras: Array[Camera3D] = []
 var _resolve_materials: Array[ShaderMaterial] = []
@@ -106,11 +131,23 @@ func _init() -> void:
 	# offscreen camera must follow the view even while paused.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mesh = _screen_triangle()
+	_volume_values = {"cloud_noise": preload("res://assets/cloud_volume_noise.tres"),
+		"cloud_detail_noise": preload("res://assets/cloud_detail_noise.tres"),
+		"atmosphere_view_samples": 4, "atmosphere_light_samples": 1}
 	var material := _volume_material(CLOUD_SHADER)
 	# Composite over the distant sun (0), before nearby exhaust and heat (2).
 	# Transparent flames are absent from scene_depth and cannot clip this pass.
 	material.render_priority = 1
 	material_override = material
+	_mask_material = _volume_material(_composite_shader("CLOUD_SPLIT_MASK", false))
+	# Classify before either color pass. Both color passes stay between the
+	# sun (0) and flames (2); their stencil tests select disjoint pixels.
+	_mask_material.render_priority = -1
+	_detail_material = _volume_material(_composite_shader("CLOUD_SPLIT_DETAIL", false))
+	_detail_material.render_priority = 1
+	_stencil_mask = _composite_pass("CloudDetailMask", _mask_material)
+	_detail_pass = _composite_pass("CloudDetail", _detail_material)
+	set_composite_variant(composite_variant)
 	# The offscreen pass needs nothing from the scene: rays come from its
 	# mirrored camera and every other input is a uniform. Its own world keeps
 	# it free of the scene's environment, tonemapping and geometry.
@@ -162,8 +199,58 @@ func _init() -> void:
 	# Each resolve target reads the other as its history.
 	_resolve_materials[0].set_shader_parameter("history", _resolve[1].get_texture())
 	_resolve_materials[1].set_shader_parameter("history", _resolve[0].get_texture())
-	material.set_shader_parameter("cloud_lowres", _lowres.get_texture())
+	_composite_param("cloud_lowres", _lowres.get_texture())
 	_start_noise_mirror()
+
+func _composite_pass(pass_name: String, material: ShaderMaterial) -> MeshInstance3D:
+	var pass_mesh := MeshInstance3D.new()
+	pass_mesh.name = pass_name
+	pass_mesh.mesh = mesh
+	pass_mesh.custom_aabb = AABB(Vector3.ONE * -1.0e9, Vector3.ONE * 2.0e9)
+	pass_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pass_mesh.material_override = material
+	add_child(pass_mesh, false, Node.INTERNAL_MODE_FRONT)
+	return pass_mesh
+
+static func _composite_shader(defines: String, bounded: bool) -> Shader:
+	var prefix := "#define CLOUD_OCCUPANCY\n" if bounded else ""
+	for define in defines.split(" ", false): prefix += "#define %s\n" % define
+	if prefix.is_empty(): return CLOUD_SHADER
+	if not _composite_shaders.has(prefix):
+		var shader := Shader.new()
+		shader.code = prefix + CLOUD_SHADER.code
+		_composite_shaders[prefix] = shader
+	return _composite_shaders[prefix]
+
+func uses_stencil_split() -> bool:
+	# Other backends retain the original compositor until validated there.
+	return composite_variant == CompositeVariant.SPLIT and RenderingServer.get_current_rendering_method() == "forward_plus"
+
+## F10 compares the production split with the original and unsafe ablations.
+func set_composite_variant(value: int) -> void:
+	composite_variant = clampi(value, 0, COMPOSITE_VARIANT_NAMES.size() - 1) as CompositeVariant
+	var defines := ""
+	if uses_stencil_split(): defines = "CLOUD_SPLIT_CHEAP"
+	elif composite_variant == CompositeVariant.NO_MARCH: defines = "CLOUD_NO_MARCH"
+	elif composite_variant == CompositeVariant.NO_EDGE: defines = "CLOUD_NO_EDGE"
+	elif composite_variant == CompositeVariant.NEITHER: defines = "CLOUD_NO_MARCH CLOUD_NO_EDGE"
+	# Without a RenderingDevice the prototype keeps the original composite.
+	elif composite_variant == CompositeVariant.BUFFERED and ComputePass.supported(): defines = "CLOUD_BUFFERED"
+	_owned_composite_shader = _composite_shader(defines, _composite_bounded)
+	(material_override as ShaderMaterial).shader = _owned_composite_shader
+	_mask_material.shader = _composite_shader("CLOUD_SPLIT_MASK", _composite_bounded)
+	_detail_material.shader = _composite_shader("CLOUD_SPLIT_DETAIL", _composite_bounded)
+	_sync_composite_passes()
+
+func _sync_composite_passes() -> void:
+	# A tool replacing the main shader owns the whole composite until restored.
+	var split := uses_stencil_split() and (material_override as ShaderMaterial).shader == _owned_composite_shader
+	_stencil_mask.visible = split
+	_detail_pass.visible = split
+
+func _composite_param(parameter: String, value: Variant) -> void:
+	for material in [material_override, _mask_material, _detail_material]:
+		(material as ShaderMaterial).set_shader_parameter(parameter, value)
 
 static func _screen_triangle() -> ArrayMesh:
 	var triangle := ArrayMesh.new()
@@ -195,14 +282,18 @@ static func _bounded(shader: Shader) -> Shader:
 func prewarm_variants() -> void:
 	var material := material_override as ShaderMaterial
 	var original_shader := material.shader
+	var original_bounded := _composite_bounded
 	var original_lowres_shader := _lowres_material.shader
 	var original_visibility := visible
 	visible = true
 	_sync_lowres()
 	for bounded in [false, true]:
-		material.shader = _bounded(CLOUD_SHADER) if bounded else CLOUD_SHADER
+		_composite_bounded = bounded
+		set_composite_variant(composite_variant)
 		_lowres_material.shader = _bounded(LOWRES_SHADER) if bounded else LOWRES_SHADER
 		await RenderingServer.frame_post_draw
+	_composite_bounded = original_bounded
+	set_composite_variant(composite_variant)
 	material.shader = original_shader
 	_lowres_material.shader = original_lowres_shader
 	visible = original_visibility
@@ -216,6 +307,11 @@ func _process(delta: float) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and _lowres != null:
 		_sync_lowres()
+	elif what == NOTIFICATION_EXIT_TREE:
+		# Never leave the pass attached to a camera this layer no longer serves.
+		_sync_buffered(null, false)
+	elif what == NOTIFICATION_PREDELETE and _compute_pass != null:
+		_compute_pass.release()
 
 func effective_scale() -> float:
 	return _altitude_scale if altitude_scaling else resolution_scale
@@ -225,7 +321,7 @@ func _update_altitude_scale(above_top: float) -> void:
 	_far_offscreen = fade >= 1.0
 	_altitude_scale = 1.0 if _far_offscreen else 0.5
 	# Above the band the offscreen passes already run at full resolution.
-	(material_override as ShaderMaterial).set_shader_parameter("full_blend", 0.0 if _far_offscreen else fade)
+	_composite_param("full_blend", 0.0 if _far_offscreen else fade)
 
 ## Whether the volume integrates offscreen rather than in the composite.
 func integrates_offscreen() -> bool:
@@ -239,13 +335,21 @@ func lowres_viewport() -> SubViewport:
 ## pose. Runs after the scene has placed its camera for this frame; the
 ## subviewport then renders before the view that composites it.
 func _sync_lowres() -> void:
+	_sync_composite_passes()
 	var camera: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
 	# The map disables the host's 3D pass; the offscreen clouds would go unseen.
-	var active := integrates_offscreen() and is_visible_in_tree() and is_instance_valid(camera) and not get_viewport().disable_3d
+	var visible_3d := is_visible_in_tree() and is_instance_valid(camera) and not get_viewport().disable_3d
+	if _sync_buffered(camera, visible_3d):
+		_lowres.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		for target in _resolve: target.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		_frame_used = false
+		_composite_param("lowres_enabled", false)
+		return
+	var active := integrates_offscreen() and visible_3d
+	var reconstruct := temporal and not _fresh_atmospheric_storms
 	_lowres.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
-	var composite := material_override as ShaderMaterial
-	composite.set_shader_parameter("lowres_enabled", active)
-	if not active or not temporal:
+	_composite_param("lowres_enabled", active)
+	if not active or not reconstruct:
 		for target in _resolve: target.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		_frame_used = false
 	if not active:
@@ -253,14 +357,14 @@ func _sync_lowres() -> void:
 	var view := get_viewport()
 	var pixels := Vector2(view.get("size")) * float(view.scaling_3d_scale)
 	var size := Vector2i((pixels * effective_scale()).round()).max(Vector2i.ONE)
-	if temporal:
+	if reconstruct:
 		# Even, so the half-size march target spans exactly the same frustum.
 		size = Vector2i(size.x + size.x % 2, size.y + size.y % 2).max(Vector2i(2, 2))
 		_sync_temporal(size, camera)
 		size /= 2
 	else:
 		_lowres_material.set_shader_parameter("temporal_march", false)
-		composite.set_shader_parameter("cloud_lowres", _lowres.get_texture())
+		_composite_param("cloud_lowres", _lowres.get_texture())
 	if _lowres.size != size:
 		_lowres.size = size
 	_lowres_camera.projection = camera.projection
@@ -273,6 +377,45 @@ func _sync_lowres() -> void:
 	_lowres_camera.h_offset = camera.h_offset
 	_lowres_camera.v_offset = camera.v_offset
 	_lowres_camera.global_transform = camera.global_transform
+
+## Whether the compute prototype owns this frame's clouds.
+func uses_buffered() -> bool:
+	return composite_variant == CompositeVariant.BUFFERED and ComputePass.supported() \
+		and (material_override as ShaderMaterial).shader == _owned_composite_shader
+
+## Runs the compute pass in place of the offscreen viewports when selected:
+## attaches it to the viewing camera, sizes its targets and binds them.
+func _sync_buffered(camera: Camera3D, visible_3d: bool) -> bool:
+	var use := uses_buffered() and visible_3d
+	if _compositor_camera != null and (not use or _compositor_camera != camera):
+		if is_instance_valid(_compositor_camera) and _compositor_camera.compositor == _compositor:
+			_compositor_camera.compositor = null
+		_compositor_camera = null
+	if _compute_pass != null:
+		_compute_pass.enabled = use
+	_composite_param("buffered_enabled", use)
+	if not use:
+		return false
+	if _compute_pass == null:
+		_compute_pass = ComputePass.new()
+		_compositor = Compositor.new()
+		_compositor.compositor_effects = [_compute_pass]
+		_composite_param("cloud_buffer_light", _compute_pass.light_texture)
+		_composite_param("cloud_buffer_depth", _compute_pass.depth_texture)
+	# Shares the dictionary: later _param() calls reach the pass directly.
+	_compute_pass.values = _volume_values
+	_compute_pass.bounded = _volume_bounded
+	if _compositor_camera == null:
+		# A camera keeps any compositor of its own; the prototype then stays idle.
+		if camera.compositor != null and camera.compositor != _compositor:
+			_composite_param("buffered_enabled", false)
+			return false
+		camera.compositor = _compositor
+		_compositor_camera = camera
+	var view := get_viewport()
+	var pixels := Vector2i((Vector2(view.get("size")) * float(view.scaling_3d_scale)).round())
+	_compute_pass.ensure_targets(pixels, effective_scale())
+	return true
 
 func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	# This runs several times a frame; advance the cycle once per drawn frame,
@@ -315,6 +458,12 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	resolve_material.set_shader_parameter("camera_motion_km", planet - _previous_planet if valid else Vector3.ZERO)
 	resolve_material.set_shader_parameter("camera_planet_km", planet)
 	resolve_material.set_shader_parameter("reprojection_radius_km", _shade_bottom + _shade_thickness * _shade_deck * 0.5)
+	# Authored storm caps are centred at 76% of their vertical shell. Only use
+	# this depth when a ray cannot see the low-deck sphere; ordinary low clouds
+	# retain their existing reprojection. Clear the fallback for storm-free maps.
+	var low_top := _shade_bottom + _shade_thickness * _shade_deck
+	resolve_material.set_shader_parameter("reprojection_storm_radius_km",
+		_shade_bottom + _shade_thickness * 0.76 if _shade_top > low_top + 0.001 else 0.0)
 	# Far above the clouds, average fresh samples with history (see the shader),
 	# but not while the camera travels, where averaging only softens.
 	var above_km := planet.length() - _shade_top
@@ -325,7 +474,7 @@ func _sync_temporal(size: Vector2i, camera: Camera3D) -> void:
 	_mirror_camera(_resolve_cameras[current], camera)
 	target.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_resolve[1 - current].render_target_update_mode = SubViewport.UPDATE_DISABLED
-	(material_override as ShaderMaterial).set_shader_parameter("cloud_lowres", target.get_texture())
+	_composite_param("cloud_lowres", target.get_texture())
 	_frame_basis = basis
 	_frame_size = size
 	_frame_planet = planet
@@ -344,7 +493,8 @@ static func _mirror_camera(target: Camera3D, camera: Camera3D) -> void:
 	target.global_transform = camera.global_transform
 
 func _param(parameter: String, value: Variant) -> void:
-	(material_override as ShaderMaterial).set_shader_parameter(parameter, value)
+	_volume_values[parameter] = value
+	_composite_param(parameter, value)
 	_lowres_material.set_shader_parameter(parameter, value)
 	for target in _reflection_materials:
 		target.set_shader_parameter(parameter, value)
@@ -406,8 +556,11 @@ func update_weather(definition: Resource, observer: Vector3, sunlight: Vector3, 
 		# transformed origins can exceed the tight outward padding. Use the full
 		# original traversal there instead of risking a false empty intersection.
 		bounded = bounded and observer.length() <= radius * 0.001 * 4.0
-	_select_shader(material_override as ShaderMaterial, CLOUD_SHADER, bounded)
+	if _composite_bounded != bounded and (material_override as ShaderMaterial).shader == _owned_composite_shader:
+		_composite_bounded = bounded
+		set_composite_variant(composite_variant)
 	_select_shader(_lowres_material, LOWRES_SHADER, bounded)
+	_volume_bounded = bounded
 
 	_param("authored_weather", weather != null)
 	_param("cloud_occupancy_enabled", bounded)
@@ -432,6 +585,9 @@ func update_weather(definition: Resource, observer: Vector3, sunlight: Vector3, 
 	_param("BODY_RADIUS", radius * 0.001)
 	_param("AIR_RADIUS", (radius + atmosphere_height) * 0.001)
 	_param("cloud_height_km", height * 0.001)
+	var altitude := observer.length() * 1000.0 - radius
+	_fresh_atmospheric_storms = weather != null and bounds[2].x <= bounds[3].x \
+		and altitude <= atmosphere_height
 	_update_altitude_scale(observer.length() * 1000.0 - radius - (height + thickness * 0.5))
 	_param("cloud_thickness_km", thickness * 0.001)
 	_param("atmosphere_density_scale", float(definition.atmosphere_visual_density))
@@ -578,9 +734,11 @@ func _formation(point: Vector3, height: float, authored: bool) -> Vector3:
 			smoothstep(0.0, 0.06, outline.y) * lerpf(0.35, 1.0, outline.y) * smoothstep(0.2, 0.6, edge.y),
 			smoothstep(0.0, 0.06, outline.z) * lerpf(0.35, 1.0, outline.z) * smoothstep(0.2, 0.6, edge.z))
 		puff_top = lerpf(0.46, 1.0, smoothstep(0.30, 0.73, billow))
-		families.x = amount.x * smoothstep(0.0, 0.11, low) * (1.0 - smoothstep(puff_top * 0.48, puff_top, low))
 		cell_top = lerpf(0.40, 0.66, billow)
-		families.y = amount.y * smoothstep(0.03, 0.13, low) * (1.0 - smoothstep(cell_top * 0.62, cell_top, low))
+		# Match the shader's disabled low cumulus and stratocumulus in storms.
+		if weights.a == 0.0:
+			families.x = amount.x * smoothstep(0.0, 0.11, low) * (1.0 - smoothstep(puff_top * 0.48, puff_top, low))
+			families.y = amount.y * smoothstep(0.03, 0.13, low) * (1.0 - smoothstep(cell_top * 0.62, cell_top, low))
 		sheet_top = 0.33 + billow * 0.08
 		families.z = amount.z * smoothstep(0.02, 0.10, low) * (1.0 - smoothstep(sheet_top - 0.12, sheet_top, low))
 	var tower := 0.0
@@ -592,7 +750,8 @@ func _formation(point: Vector3, height: float, authored: bool) -> Vector3:
 		tower = smoothstep((1.0 - tower_width) * 0.7 - 0.06, (1.0 - tower_width) * 0.7 + 0.08, weights.a + (billow - 0.5) * 0.20) \
 			* smoothstep(0.0, 0.04, height) * (1.0 - smoothstep(0.96, 0.99, height))
 		tower *= smoothstep(0.0, 0.08, weights.a)
-		tower = maxf(tower, weights.a * 0.025 * smoothstep(0.0, 0.06, height) * (1.0 - smoothstep(0.85, 1.0, height))) * 1.12
+		# Match the shader: no background haze outside the tower contour.
+		tower *= 1.12
 	var density := families.x + families.y + families.z + tower
 	if density <= 0.0:
 		return Vector3.ZERO

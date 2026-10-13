@@ -15,6 +15,9 @@ var _profile_texture: ImageTexture
 var flow_phase := 0.0
 var path_count := 0
 var profile_build_count := 0
+const OUTLINE_BANDS := 32
+const OUTLINE_DIRECTIONS := 64
+var _outlines := {}
 
 func _init() -> void:
 	name = "AtmosphericWake"
@@ -61,6 +64,34 @@ func prepare_hull(hull: Array[MeshInstance3D], rocket: Node3D) -> void:
 		_sample_hull(hull, rocket)
 		if _profile_ready: _build_seed_mesh()
 
+## The outermost vertices of a mesh: per height band and direction around its
+## own axis, the one farthest out. Staging resamples the hull; reading every
+## part's vertex arrays back again stalled separation for a second, and stacks
+## repeat the same tank mesh many times.
+func _outline(mesh: Mesh) -> PackedVector3Array:
+	if _outlines.has(mesh): return _outlines[mesh]
+	var aabb := mesh.get_aabb()
+	var bands := maxi(1, mini(OUTLINE_BANDS, int(ceil(aabb.size.y / 0.25))))
+	var outline := {}
+	for surface in range(mesh.get_surface_count()):
+		var arrays := mesh.surface_get_arrays(surface)
+		if arrays.is_empty(): continue
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		# Detailed authored meshes need only a bounded sample for the envelope.
+		var stride := maxi(1, vertices.size() / 1600)
+		for index in range(0, vertices.size(), stride):
+			var vertex := vertices[index]
+			var band := clampi(int((vertex.y - aabb.position.y) / maxf(aabb.size.y, 0.0001) * bands), 0, bands - 1)
+			var key := band * OUTLINE_DIRECTIONS + posmod(int(round(atan2(vertex.z, vertex.x) / TAU * OUTLINE_DIRECTIONS)), OUTLINE_DIRECTIONS)
+			if not outline.has(key) or Vector2(vertex.x, vertex.z).length_squared() > Vector2(outline[key].x, outline[key].z).length_squared():
+				outline[key] = vertex
+	# Keep the extreme heights so the envelope's ends are unchanged.
+	var points := PackedVector3Array(outline.values())
+	points.append(aabb.position + Vector3(aabb.size.x * 0.5, 0.0, aabb.size.z * 0.5))
+	points.append(aabb.end - Vector3(aabb.size.x * 0.5, 0.0, aabb.size.z * 0.5))
+	_outlines[mesh] = points
+	return points
+
 func _sample_hull(hull: Array[MeshInstance3D], rocket: Node3D) -> void:
 	var points := PackedVector3Array()
 	_bottom = INF
@@ -68,17 +99,11 @@ func _sample_hull(hull: Array[MeshInstance3D], rocket: Node3D) -> void:
 	for part in hull:
 		if not is_instance_valid(part) or not part.is_visible_in_tree() or part.mesh == null: continue
 		var frame := rocket.global_transform.affine_inverse() * part.global_transform
-		for surface in range(part.mesh.get_surface_count()):
-			var arrays := part.mesh.surface_get_arrays(surface)
-			if arrays.is_empty(): continue
-			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-			# Detailed authored meshes need only a bounded sample for the envelope.
-			var stride := maxi(1, vertices.size() / 1600)
-			for index in range(0, vertices.size(), stride):
-				var point := frame * vertices[index]
-				points.append(point)
-				_bottom = minf(_bottom, point.y)
-				_top = maxf(_top, point.y)
+		for point in _outline(part.mesh):
+			point = frame * point
+			points.append(point)
+			_bottom = minf(_bottom, point.y)
+			_top = maxf(_top, point.y)
 	_profile_ready = points.size() > 0 and _top - _bottom > 0.01
 	if not _profile_ready: return
 	_radii.resize(HEIGHT_SLICES * ANGLE_SLICES)
@@ -87,9 +112,10 @@ func _sample_hull(hull: Array[MeshInstance3D], rocket: Node3D) -> void:
 		var y := clampi(int((point.y - _bottom) / (_top - _bottom) * (HEIGHT_SLICES - 1)), 0, HEIGHT_SLICES - 1)
 		var angle := posmod(int(round(atan2(point.z, point.x) / TAU * ANGLE_SLICES)), ANGLE_SLICES)
 		var radius := Vector2(point.x, point.z).length()
-		for row in [y, mini(y + 1, HEIGHT_SLICES - 1)]:
-			var index: int = row * ANGLE_SLICES + angle
-			_radii[index] = maxf(_radii[index], radius)
+		var index := y * ANGLE_SLICES + angle
+		_radii[index] = maxf(_radii[index], radius)
+		index = mini(y + 1, HEIGHT_SLICES - 1) * ANGLE_SLICES + angle
+		_radii[index] = maxf(_radii[index], radius)
 	# Fill sparse tessellation gaps from the nearest occupied profile slice.
 	var sampled := _radii.duplicate()
 	for y in range(HEIGHT_SLICES):

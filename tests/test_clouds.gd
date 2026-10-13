@@ -48,6 +48,12 @@ func _run() -> void:
 	world.camera.position = Vector3.ZERO
 	world.camera.look_at(world._planet.position, Vector3.FORWARD)
 	world.set_sun_direction(Vector3.UP)
+	# Below the full-resolution band, the jump from orbit restarts temporal
+	# reconstruction. Far above the clouds each pixel is refreshed every fourth
+	# frame and keeps 70% history, so detail sharpens with a time constant of
+	# about 13 frames. Captures 3 or 30 frames after a change measured that
+	# convergence (0.007 and 0.0012), not depth precision.
+	for frame in range(120): await process_frame
 	var globe := await capture("globe-day")
 	var flight_near: float = world.camera.near
 	var cloud_cull_margin: float = world._clouds.extra_cull_margin
@@ -55,8 +61,11 @@ func _run() -> void:
 	# Keep the camera-anchored screen triangle inside the enlarged near plane;
 	# otherwise CPU frustum culling hides this supposed depth reference entirely.
 	world._clouds.extra_cull_margin = 2000.0
+	for frame in range(120): await process_frame
 	var precise_globe := await capture("globe-depth-reference")
-	check(difference(globe, precise_globe) < 0.003, "Distant clouds match a high-precision depth reference")
+	var depth_difference := difference(globe, precise_globe)
+	print("Globe/depth-reference mean RGB difference: %.6f" % depth_difference)
+	check(depth_difference < 0.003, "Distant clouds match a high-precision depth reference")
 	world.camera.near = flight_near
 	world._clouds.extra_cull_margin = cloud_cull_margin
 	world.set_sun_direction(Vector3(1, -0.18, 0))
