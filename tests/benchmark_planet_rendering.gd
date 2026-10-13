@@ -9,6 +9,7 @@ extends "res://tests/test_atmosphere.gd"
 ##   BENCH_FRAMES    measured frames per variant per round (default 90)
 ##   BENCH_ROUNDS    interleaved rounds; variant order reverses each round (default 2)
 ##   BENCH_QUALITY   atmosphere preset (scripts/atmosphere_quality.gd), e.g. "reference"
+##   BENCH_OCEAN_SHADING  ocean.gdshader cloud_reflection_shading override (probe)
 ## Variants isolate cost: every variant except "full" hides the volumetric
 ## clouds. "no_clouds" changes nothing else; "air_min"
 ## also forces 2 view / 1 light scattering samples, approximating the cost of
