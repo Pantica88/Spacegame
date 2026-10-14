@@ -1,9 +1,9 @@
-[gd_resource type="Resource" load_steps=8 format=4]
+[gd_resource type="Resource" format=4]
 
 [ext_resource type="Script" path="res://scripts/planet_definition.gd" id="1"]
-[ext_resource type="Resource" path="res://assets/planets/baked/verdant-809b9c70792967db63c735a1b0400a0dc19ec5c8165c89d78c9c2cc3715741e2.res" id="1_w21mn"]
+[ext_resource type="Resource" path="res://assets/planets/baked/verdant-8bb21746812db3d9baddc19229e45a913d45fd2e7a80ec652e2f18a4538e1fdb.res" id="1_w21mn"]
 [ext_resource type="Script" path="res://scripts/cloud_weather_map.gd" id="2_rg56d"]
-[ext_resource type="Resource" path="res://assets/planets/moons/baked/verdant-moon-0-5d1093f16554cb881a5804f88f0bfdc8e3cbbdbf3a2e9ee4cb8347f732e606bf.res" id="3_rg56d"]
+[ext_resource type="Resource" path="res://assets/planets/moons/baked/verdant-moon-0-02c06d3a0543c32b9b895ea1393b5698b9c967317a567a5f91b59b17ab0fcc78.res" id="3_rg56d"]
 
 [sub_resource type="Image" id="Image_vvnwo"]
 data = {
