@@ -2,11 +2,11 @@
 
 ## Godot Engine
 
-This game uses Godot Engine. The current development and export target is Godot **4.5.1 Standard**.
+This game uses Godot Engine. The current development and export target is Godot **4.7.2**, built from the 4.7.2-stable source with double precision (`precision=double`).
 
 Godot Engine is distributed under the MIT license. Its copyright and license statement are available at [https://godotengine.org/license/](https://godotengine.org/license/). The Godot developers recognize that link in game documentation or credits as an acceptable way to provide the engine notice.
 
-Godot includes third-party components under their own licenses. The notices for the pinned engine release are available in [Godot 4.5.1 COPYRIGHT.txt](https://github.com/godotengine/godot/blob/4.5.1-stable/COPYRIGHT.txt), and the engine license is in [Godot 4.5.1 LICENSE.txt](https://github.com/godotengine/godot/blob/4.5.1-stable/LICENSE.txt). Preserve those notices when redistributing the engine with the game. The complete notices reported by the official Godot 4.5.1 editor follow below. Refresh them when changing engine versions or dependencies.
+Godot includes third-party components under their own licenses. The notices for the pinned engine release are available in [Godot 4.7.2 COPYRIGHT.txt](https://github.com/godotengine/godot/blob/4.7.2-stable/COPYRIGHT.txt), and the engine license is in [Godot 4.7.2 LICENSE.txt](https://github.com/godotengine/godot/blob/4.7.2-stable/LICENSE.txt). Preserve those notices when redistributing the engine with the game. The complete notices reported by that Godot 4.7.2 build follow below. Refresh them when changing engine versions or dependencies with `tools/run.sh --headless --script res://tools/third_party_notices.gd`.
 
 ## Game content
 
@@ -14,7 +14,7 @@ The initial game uses procedural meshes and project-authored visual elements. No
 
 Planet geography, meshes, and surface colors are generated from project-authored seeds and settings. No NASA surface imagery is included.
 
-## Godot 4.5.1 engine license
+## Godot 4.7.2 engine license
 
 ```text
 Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md).
@@ -39,7 +39,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Godot 4.5.1 component copyrights
+## Godot 4.7.2 component copyrights
 
 ### Godot Engine
 
@@ -48,14 +48,6 @@ Files: *
 Copyright (c) 2014-present, Godot Engine contributors
 Copyright (c) 2007-2014, Juan Linietsky, Ariel Manzur
 License: Expat
-```
-
-### Godot Engine logo
-
-```text
-Files: icon.png, icon.svg, logo.png, logo.svg
-Copyright (c) 2017, Andrea Calabró
-License: CC-BY-4.0
 ```
 
 ### Bullet Continuous Collision Detection and Physics Library
@@ -69,7 +61,7 @@ License: Expat and Zlib
 ```
 
 ```text
-Files: modules/godot_physics_3d/gjk_epa.cpp, modules/godot_physics_3d/joints/godot_generic_6dof_joint_3d.cpp, modules/godot_physics_3d/joints/godot_generic_6dof_joint_3d.h, modules/godot_physics_3d/joints/godot_hinge_joint_3d.cpp, modules/godot_physics_3d/joints/godot_hinge_joint_3d_sw.h, modules/godot_physics_3d/joints/godot_jacobian_entry_3d_sw.h, modules/godot_physics_3d/joints/godot_pin_joint_3d.cpp, modules/godot_physics_3d/joints/godot_pin_joint_3d.h, modules/godot_physics_3d/joints/godot_slider_joint_3d.cpp, modules/godot_physics_3d/joints/godot_slider_joint_3d.h, modules/godot_physics_3d/godot_soft_body_3d.cpp, modules/godot_physics_3d/godot_soft_body_3d.h, modules/godot_physics_3d/godot_shape_3d.cpp, modules/godot_physics_3d/godot_shape_3d.h
+Files: modules/godot_physics_3d/gjk_epa.cpp, modules/godot_physics_3d/joints/godot_generic_6dof_joint_3d.cpp, modules/godot_physics_3d/joints/godot_generic_6dof_joint_3d.h, modules/godot_physics_3d/joints/godot_hinge_joint_3d.cpp, modules/godot_physics_3d/joints/godot_hinge_joint_3d.h, modules/godot_physics_3d/joints/godot_jacobian_entry_3d.h, modules/godot_physics_3d/joints/godot_pin_joint_3d.cpp, modules/godot_physics_3d/joints/godot_pin_joint_3d.h, modules/godot_physics_3d/joints/godot_slider_joint_3d.cpp, modules/godot_physics_3d/joints/godot_slider_joint_3d.h, modules/godot_physics_3d/godot_soft_body_3d.cpp, modules/godot_physics_3d/godot_soft_body_3d.h, modules/godot_physics_3d/godot_shape_3d.cpp, modules/godot_physics_3d/godot_shape_3d.h
 Copyright (c) 2003-2008, Erwin Coumans
 Copyright (c) 2014-present, Godot Engine contributors
 Copyright (c) 2007-2014, Juan Linietsky, Ariel Manzur
@@ -84,10 +76,26 @@ Copyright (c) 2007-2014, Juan Linietsky, Ariel Manzur
 License: Expat and Zlib
 ```
 
+### Linux AppStream Metadata File
+
+```text
+Files: misc/dist/linux/org.godotengine.Godot.appdata.xml
+Copyright (c) 2017-2022, Rémi Verschelde
+License: CC0-1.0
+```
+
+### Godot Engine logo
+
+```text
+Files: misc/logo/*
+Copyright (c) 2017, Andrea Calabró
+License: CC-BY-4.0
+```
+
 ### Betsy
 
 ```text
-Files: modules/betsy/alpha_stitch.glsl, modules/betsy/bc1.glsl, modules/betsy/bc4.glsl, modules/betsy/bc6h.glsl, modules/betsy/CrossPlatformSettings_piece_all.glsl
+Files: modules/betsy/alpha_stitch.glsl, modules/betsy/bc1.glsl, modules/betsy/bc4.glsl, modules/betsy/bc6h.glsl
 Copyright (c) 2020-2022, Matias N. Goldberg
 License: Expat
 ```
@@ -137,7 +145,7 @@ License: Expat
 ### The Android Open Source Project
 
 ```text
-Files: platform/android/java/editor/src/main/java/com/android/*, platform/android/java/lib/aidl/com/android/*, platform/android/java/lib/res/layout/status_bar_ongoing_event_progress_bar.xml, platform/android/java/lib/src/com/google/android/*, platform/android/java/lib/src/org/godotengine/godot/input/InputManagerCompat.java, platform/android/java/lib/src/org/godotengine/godot/input/InputManagerV16.java
+Files: platform/android/java/editor/src/main/java/com/android/*, platform/android/java/lib/src/main/aidl/com/android/*, platform/android/java/lib/src/main/res/layout/status_bar_ongoing_event_progress_bar.xml, platform/android/java/lib/src/main/java/com/google/android/*
 Copyright (c) 2008-2016, The Android Open Source Project
 Copyright (c) 2002, Google, Inc.
 License: Apache-2.0
@@ -146,7 +154,7 @@ License: Apache-2.0
 ### ProcessPhoenix
 
 ```text
-Files: platform/android/java/lib/src/org/godotengine/godot/utils/ProcessPhoenix.java
+Files: platform/android/java/lib/src/main/java/org/godotengine/godot/utils/ProcessPhoenix.java
 Copyright (c) 2015, Jake Wharton
 License: Apache-2.0
 ```
@@ -164,7 +172,7 @@ License: Expat
 ### NVidia's FXAA 3.11, simplified by Simon Rodriguez
 
 ```text
-Files: ./servers/rendering/renderer_rd/shaders/effects/tonemap.glsl
+Files: servers/rendering/renderer_rd/shaders/effects/tonemap.glsl
 Copyright (c) 2014-2015, NVIDIA CORPORATION
 Copyright (c) 2017 Simon Rodriguez
 License: BSD-3-clause and Expat
@@ -173,7 +181,7 @@ License: BSD-3-clause and Expat
 ### Intel ASSAO and related files
 
 ```text
-Files: ./servers/rendering/renderer_rd/shaders/ss_effects_downsample.glsl, ./servers/rendering/renderer_rd/shaders/ssao_blur.glsl, ./servers/rendering/renderer_rd/shaders/ssao_importance_map.glsl, ./servers/rendering/renderer_rd/shaders/ssao_interleave.glsl, ./servers/rendering/renderer_rd/shaders/ssao.glsl, ./servers/rendering/renderer_rd/shaders/ssil_blur.glsl, ./servers/rendering/renderer_rd/shaders/ssil_importance_map.glsl, ./servers/rendering/renderer_rd/shaders/ssil_interleave.glsl, ./servers/rendering/renderer_rd/shaders/ssil.glsl
+Files: servers/rendering/renderer_rd/shaders/effects/ss_effects_downsample.glsl, servers/rendering/renderer_rd/shaders/effects/ssao_blur.glsl, servers/rendering/renderer_rd/shaders/effects/ssao_importance_map.glsl, servers/rendering/renderer_rd/shaders/effects/ssao_interleave.glsl, servers/rendering/renderer_rd/shaders/effects/ssao.glsl, servers/rendering/renderer_rd/shaders/effects/ssil_blur.glsl, servers/rendering/renderer_rd/shaders/effects/ssil_importance_map.glsl, servers/rendering/renderer_rd/shaders/effects/ssil_interleave.glsl, servers/rendering/renderer_rd/shaders/effects/ssil.glsl
 Copyright (c) 2016, Intel Corporation
 License: Expat
 ```
@@ -189,7 +197,7 @@ License: Expat
 ### Subpixel Morphological Antialiasing
 
 ```text
-Files: servers/rendering/renderer_rd/shaders/smaa_blending.glsl, servers/rendering/renderer_rd/shaders/smaa_weight_calculation.glsl, servers/rendering/renderer_rd/shaders/smaa_edge_detection.glsl, thirdparty/smaa/*
+Files: servers/rendering/renderer_rd/shaders/effects/smaa_blending.glsl, servers/rendering/renderer_rd/shaders/effects/smaa_weight_calculation.glsl, servers/rendering/renderer_rd/shaders/effects/smaa_edge_detection.glsl, thirdparty/smaa/*
 Copyright (c) 2013, Jorge Jimenez
 Copyright (c) 2013, Jose I. Echevarria
 Copyright (c) 2013, Belen Masia
@@ -242,7 +250,7 @@ License: Apache-2.0
 
 ```text
 Files: thirdparty/basis_universal/*
-Copyright (c) 2019-2024, Binomial LLC.
+Copyright (c) 2019-2025, Binomial LLC.
 License: Apache-2.0
 ```
 
@@ -257,7 +265,7 @@ License: Expat
 ### CA certificates
 
 ```text
-Files: thirdparty/certs/ca-certificates.crt
+Files: thirdparty/certs/ca-bundle.crt
 Copyright (c) Mozilla Contributors
 License: MPL-2.0
 ```
@@ -303,6 +311,14 @@ Copyright (c) 2016-2023, Viktor Kirilov
 License: Expat
 ```
 
+### dr_libs
+
+```text
+Files: thirdparty/dr_libs/*
+Copyright (c) 2020, David Reid
+License: Unlicense or MIT-0
+```
+
 ### Embree
 
 ```text
@@ -335,6 +351,14 @@ Copyright (c) 2008, The Android Open Source Project
 License: Apache-2.0
 ```
 
+### Inter font
+
+```text
+Files: thirdparty/fonts/Inter*.woff2
+Copyright (c) 2016, The Inter Project Authors
+License: OFL-1.1
+```
+
 ### JetBrains Mono font
 
 ```text
@@ -351,6 +375,14 @@ Copyright (c) 2012, Google Inc.
 License: OFL-1.1
 ```
 
+### Open Sans font
+
+```text
+Files: thirdparty/fonts/OpenSans*.woff2
+Copyright (c) 2020, The Open Sans Project Authors
+License: OFL-1.1
+```
+
 ### Vazirmatn font
 
 ```text
@@ -363,8 +395,16 @@ License: OFL-1.1
 
 ```text
 Files: thirdparty/freetype/*
-Copyright (c) 1996-2023, David Turner, Robert Wilhelm, and Werner Lemberg.
+Copyright (c) 1996-2025, David Turner, Robert Wilhelm, and Werner Lemberg.
 License: FTL
+```
+
+### GamepadMotionHelpers
+
+```text
+Files: thirdparty/gamepadmotionhelpers/*
+Copyright (c) 2020-2023, Julian "Jibb" Smart
+License: Expat
 ```
 
 ### glad
@@ -447,7 +487,7 @@ License: BSD-3-clause
 
 ```text
 Files: thirdparty/libjpeg-turbo/*
-Copyright (c) 2009-2024, D. R. Commander
+Copyright (c) 2009-2025, D. R. Commander
 Copyright (c) 2015, Viktor Szathmáry.
 Copyright (c) 1991-2020, Thomas G. Lane, Guido Vollbeding
 License: BSD-3-clause and IJG
@@ -480,8 +520,8 @@ License: BSD-3-clause
 
 ```text
 Files: thirdparty/libpng/*
-Copyright (c) 1995-2025, The PNG Reference Library Authors.
-Copyright (c) 2018-2025, Cosmin Truta.
+Copyright (c) 1995-2026, The PNG Reference Library Authors.
+Copyright (c) 2018-2026, Cosmin Truta.
 Copyright (c) 2000-2002, 2004, 2006-2018 Glenn Randers-Pehrson.
 Copyright (c) 1996-1997, Andreas Dilger.
 Copyright (c) 1995-1996, Guy Eric Schalnat, Group 42, Inc.
@@ -524,8 +564,16 @@ License: Apache-2.0
 
 ```text
 Files: thirdparty/meshoptimizer/*
-Copyright (c) 2016-2024, Arseny Kapoulkine
+Copyright (c) 2016-2026, Arseny Kapoulkine
 License: Expat
+```
+
+### metal-cpp
+
+```text
+Files: thirdparty/metal-cpp/*
+Copyright (c) 2024, Apple Inc.
+License: Apache-2.0
 ```
 
 ### mingw-std-threads
@@ -534,14 +582,6 @@ License: Expat
 Files: thirdparty/mingw-std-threads/*
 Copyright (c) 2016, Mega Limited
 License: BSD-2-clause
-```
-
-### MiniMP3
-
-```text
-Files: thirdparty/minimp3/*
-Copyright (c) lieff
-License: CC0-1.0
 ```
 
 ### MiniUPnP Project
@@ -556,7 +596,7 @@ License: BSD-3-clause
 
 ```text
 Files: thirdparty/minizip/*
-Copyright (c) 1998-2010, Gilles Vollant
+Copyright (c) 1998-2026, Gilles Vollant
 Copyright (c) 2007-2008, Even Rouault
 Copyright (c) 2009-2010, Mathias Svensson
 License: Zlib
@@ -655,7 +695,7 @@ License: Expat
 ```text
 Files: thirdparty/misc/r128.c, thirdparty/misc/r128.h
 Copyright (c) Alan Hickman
-License: public-domain or Unlicense
+License: Unlicense
 ```
 
 ### SMAZ
@@ -671,7 +711,7 @@ License: BSD-3-clause
 ```text
 Files: thirdparty/misc/smolv.cpp, thirdparty/misc/smolv.h
 Copyright (c) 2016-2024, Aras Pranckevicius
-License: public-domain or Unlicense or Expat
+License: Unlicense or Expat
 ```
 
 ### stb libraries
@@ -679,7 +719,7 @@ License: public-domain or Unlicense or Expat
 ```text
 Files: thirdparty/misc/stb_rect_pack.h
 Copyright (c) Sean Barrett
-License: public-domain or Unlicense or Expat
+License: Unlicense or Expat
 ```
 
 ### YUV2RGB
@@ -744,7 +784,7 @@ License: Zlib
 ```text
 Files: thirdparty/sdl/hidapi/*
 Copyright (c) 2010, Alan Ott, Signal 11 Software
-License: BSD-3-Clause
+License: BSD-3-clause
 ```
 
 ### SPIRV-Cross
@@ -753,6 +793,14 @@ License: BSD-3-Clause
 Files: thirdparty/spirv-cross/*
 Copyright (c) 2015-2021, Arm Limited
 License: Apache-2.0 or Expat
+```
+
+### SPIRV-Headers
+
+```text
+Files: thirdparty/spirv-headers/*
+Copyright (c) 2015-2024, The Khronos Group Inc.
+License: Expat
 ```
 
 ### SPIRV-Reflect
@@ -775,7 +823,7 @@ License: Apache-2.0
 
 ```text
 Files: thirdparty/thorvg/*
-Copyright (c) 2020-2024, The ThorVG Project
+Copyright (c) 2020-2026, The ThorVG Project
 License: Expat
 ```
 
@@ -809,7 +857,7 @@ License: BSD-3-clause
 
 ```text
 Files: thirdparty/volk/*
-Copyright (c) 2018-2024, Arseny Kapoulkine
+Copyright (c) 2018-2025, Arseny Kapoulkine
 License: Expat
 ```
 
@@ -817,9 +865,9 @@ License: Expat
 
 ```text
 Files: thirdparty/vulkan/*
-Copyright (c) 2014-2024, The Khronos Group Inc.
-Copyright (c) 2014-2024, Valve Corporation
-Copyright (c) 2014-2024, LunarG, Inc.
+Copyright (c) 2015-2025, The Khronos Group Inc.
+Copyright (c) 2015-2025, Valve Corporation
+Copyright (c) 2015-2025, LunarG, Inc.
 License: Apache-2.0
 ```
 
@@ -827,7 +875,7 @@ License: Apache-2.0
 
 ```text
 Files: thirdparty/vulkan/vk_mem_alloc.h
-Copyright (c) 2017-2024, Advanced Micro Devices, Inc.
+Copyright (c) 2017-2025, Advanced Micro Devices, Inc.
 License: Expat
 ```
 
@@ -857,6 +905,15 @@ Copyright (c) 2015, Red Hat Inc.
 License: Expat
 ```
 
+### Mesa Wayland protocols
+
+```text
+Files: thirdparty/wayland-protocols/mesa/wayland-drm.xml
+Copyright (c) 2008-2011, Kristian Høgsberg
+Copyright (c) 2010-2011, Intel Corporation
+License: X11
+```
+
 ### Wslay
 
 ```text
@@ -879,7 +936,7 @@ License: Expat
 
 ```text
 Files: thirdparty/zlib/*
-Copyright (c) 1995-2024, Jean-loup Gailly and Mark Adler
+Copyright (c) 1995-2026, Jean-loup Gailly and Mark Adler
 License: Zlib
 ```
 
@@ -1645,9 +1702,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 The FreeType Project LICENSE
 ----------------------------
 
-2000-Feb-08
+2006-Jan-27
 
-Copyright 1996-2000 by
+Copyright 1996-2002, 2006 by
 David Turner, Robert Wilhelm, and Werner Lemberg
 
 
@@ -1685,6 +1742,19 @@ We  specifically  permit  and  encourage  the  inclusion  of  this
 software, with  or without modifications,  in commercial products.
 We  disclaim  all warranties  covering  The  FreeType Project  and
 assume no liability related to The FreeType Project.
+
+
+Finally,  many  people  asked  us  for  a  preferred  form  for  a
+credit/disclaimer to use in compliance with this license.  We thus
+encourage you to use the following text:
+
+"""
+Portions of this software are copyright Â© <year> The FreeType
+Project (https://freetype.org).  All rights reserved.
+"""
+
+Please replace <year> with the value from the FreeType version you
+actually use.
 
 
 Legal Terms
@@ -1737,12 +1807,12 @@ forms)  and  derivative works  thereof  for  any  purpose; and  to
 authorize others  to exercise  some or all  of the  rights granted
 herein, subject to the following conditions:
 
-o Redistribution  of source code  must retain this  license file
-(`LICENSE.TXT') unaltered; any additions, deletions or changes
-to   the  original   files  must   be  clearly   indicated  in
-accompanying  documentation.   The  copyright notices  of  the
-unaltered, original  files must be preserved in  all copies of
-source files.
+o Redistribution of  source code  must retain this  license file
+(`FTL.TXT') unaltered; any  additions, deletions or changes to
+the original  files must be clearly  indicated in accompanying
+documentation.   The  copyright   notices  of  the  unaltered,
+original  files must  be  preserved in  all  copies of  source
+files.
 
 o Redistribution in binary form must provide a  disclaimer  that
 states  that  the software is based in part of the work of the
@@ -1780,29 +1850,21 @@ of this license.
 
 There are two mailing lists related to FreeType:
 
-o freetype@freetype.org
+o freetype@nongnu.org
 
 Discusses general use and applications of FreeType, as well as
 future and  wanted additions to the  library and distribution.
 If  you are looking  for support,  start in  this list  if you
 haven't found anything to help you in the documentation.
 
-o devel@freetype.org
+o freetype-devel@nongnu.org
 
 Discusses bugs,  as well  as engine internals,  design issues,
 specific licenses, porting, etc.
 
-o http://www.freetype.org
+Our home page can be found at
 
-Holds the current  FreeType web page, which will  allow you to
-download  our  latest  development  version  and  read  online
-documentation.
-
-You can also contact us individually at:
-
-David Turner      <david.turner@freetype.org>
-Robert Wilhelm    <robert.wilhelm@freetype.org>
-Werner Lemberg    <werner.lemberg@freetype.org>
+https://freetype.org
 ```
 
 ### HarfBuzz
@@ -1885,6 +1947,25 @@ software".
 We specifically permit and encourage the use of this software as the basis of
 commercial products, provided that all warranty or liability claims are
 assumed by the product vendor.
+```
+
+### MIT-0
+
+```text
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### MPL-2.0
@@ -2428,6 +2509,31 @@ documentation for any purpose is hereby granted without fee, provided that
 the above copyright notice and this license appear in all source copies.
 THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY OF
 ANY KIND. See https://dspguru.com/wide-open-license/ for more information.
+```
+
+### X11
+
+```text
+Permission to use, copy, modify, distribute, and sell this
+software and its documentation for any purpose is hereby granted
+without fee, provided that\n the above copyright notice appear in
+all copies and that both that copyright notice and this permission
+notice appear in supporting documentation, and that the name of
+the copyright holders not be used in advertising or publicity
+pertaining to distribution of the software without specific,
+written prior permission.  The copyright holders make no
+representations about the suitability of this software for any
+purpose.  It is provided "as is" without express or implied
+warranty.
+
+THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
+SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
 ```
 
 ### Zlib

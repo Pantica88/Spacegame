@@ -10,7 +10,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 
 | # | Decision | Status | Act when |
 |---|---|---|---|
-| 1 | Engine: Godot 4.5.1, custom double-precision build | OK | Upgrade to 4.8.x when stable, between roadmap steps |
+| 1 | Engine: Godot 4.7.2, custom double-precision build (since 2026-10-13) | OK | Upgrade to 4.8.x when stable, between roadmap steps |
 | 2 | Coordinate precision: double | OK | — |
 | 3 | Renderer: Forward+ | OK | Done 2026-10-09; tuned to beat Compatibility at 1080p |
 | 4 | Simulation in GDScript, custom flight model | Conditional | Requires step 6 (on-rails, level of detail) |
@@ -22,17 +22,36 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 | 10 | Part definitions hardcoded in `scripts/parts.gd` | **Gap** | Before campaign and technology content |
 | 11 | Large coordinator scripts (`main.gd`, `world_view.gd`) | Conditional | Split during steps 2–3, not later |
 | 12 | Tests, perf lab and git practice | OK | Tag releases from now on |
-| 13 | Engine bug: preload order breaks planet resources | Worked around | Fixed by the 4.8 upgrade |
+| 13 | Engine bug: preload order breaks planet resources | Worked around | Fixed in official 4.7.2; keep the workaround until re-verified on the double build |
 | 14 | Hidden single-planet values found in step 2 | Gap | Step 3 |
-| 15 | Engine bug: negated camera position in double-precision Forward+ shaders | Worked around | Fixed by the 4.8 upgrade (verify) |
+| 15 | Engine bug: negated camera position in double-precision Forward+ shaders | Worked around | Still present in 4.7.2 (verified 2026-10-13); recheck on 4.8 |
 
 ## 1. Engine and version
 
-**Today:** Godot 4.5.1, built from source with `precision=double` and one local patch (`~/godot-double/patches/`). Latest stable on 2026-10-09 is 4.7.2; 4.8 is in feature freeze (dev 7, 29 Sept 2026).
+**Today (since 2026-10-13):** Godot 4.7.2, built from the `4.7.2-stable` tag with `precision=double` and the same local `SurfaceTool` patch, in `~/godot-double/src-4.7` (script `~/godot-double/build-4.7.sh`). The 4.5.1 build in `~/godot-double/src` remains as a fallback; `tools/run.sh` and the performance lab prefer 4.7.2. Only Linux export templates are built; Windows is not a target for now.
 
-**Fits the vision:** yes. 4.6 and 4.7 improve Jolt physics, Forward+/Mobile rendering, animation and the editor, none of which the game uses ([4.6](https://godotengine.org/releases/4.6/), [4.7](https://godotengine.org/releases/4.7/)). The local `SurfaceTool` patch is still needed on 4.7.2.
+**History:** the original decision (2026-10-09) was to stay on 4.5.1 and upgrade once, to 4.8.x. On 2026-10-13 the owner chose to move to 4.7.2 now. The trigger was that saves made with the official single-precision 4.7.2 download had been mixed into testing: their bakes were rejected by 4.5.1, which hid the near-surface ocean.
 
-**Decision:** stay on 4.5.1; upgrade once to 4.8.x (ideally 4.8.1) after it is stable. The upgrade also fixes the preload-order engine bug in entry 13. Upgrade between roadmap steps, never during a refactor, so engine changes and code changes are never mixed. An upgrade means: rebuild editor and templates, re-apply patches, re-bake every planet (the version is in the bake signature), run the test suite and perf lab, and check custom shaders visually.
+**Upgrade record (2026-10-13):**
+
+- Built the editor (about 18 min on 6 cores) and the Linux release and debug templates. Verified precision: 1 mm at 600 km and 1 cm at 1 AU survive; the official 4.7.2 download loses both. Wayland is now included, since `wayland-scanner` is installed.
+- The patch is still required: `SurfaceTool::Vertex` in 4.7.2 still has the implicit padding.
+- The project imported without script, parse or shader errors. `tools/rebake_bundled_planets.gd` re-baked Verdant, the Mun and Ochre; only bake references changed. The 4.5.1 bakes stay on disk for older branches.
+- `tools/check.sh`: 90/90 pass. Graphical `test_rendering` and `test_planet_preview` pass. `test_atmosphere` has the same four stale-fixture failures as on 4.5.1.
+- Rendering (`tests/benchmark_planet_rendering.gd`, High preset, 1080p, RX 580): captures match 4.5.1 within the noise floor, and GPU time is equal or slightly lower in every scenario. 4.7.2 also culls the off-screen launch complex, which 4.5.1 drew in some views (for example 368 draw calls become 144 at the surface). See [RENDERING_PERFORMANCE.md](RENDERING_PERFORMANCE.md#engine-472).
+- **Export templates now block `--script`, `--path`, `--main-pack` and `--scene` by default** (`disable_path_overrides=True` since 4.6). Shipped builds keep that protection. `test_packaged_rendering.gd` runs through a separate test-only template built with `disable_path_overrides=no extra_suffix=testing`, loading the exported `.pck` with `--main-pack`.
+- `THIRD_PARTY_NOTICES.md` regenerated from the 4.7.2 engine with `tools/third_party_notices.gd`.
+- One unexplained editor abort while quitting a headless import of a tiny probe project; it did not recur in seven further attempts. Watch for it.
+
+**Fits the vision:** yes. 4.6 and 4.7 mostly improve Jolt physics, Forward+/Mobile rendering, animation and the editor, little of which the game uses ([4.6](https://godotengine.org/releases/4.6/), [4.7](https://godotengine.org/releases/4.7/)).
+
+**Decision:** stay on 4.7.2 double; upgrade once to 4.8.x (ideally 4.8.1) after it is stable. Upgrade between roadmap steps, never during a refactor, so engine changes and code changes are never mixed. An upgrade means:
+
+- rebuild the editor and templates and re-apply the patches;
+- re-bake every planet and moon with `tools/rebake_bundled_planets.gd` (the engine version is in the bake signature), and re-save player planets from the planet editor;
+- regenerate `THIRD_PARTY_NOTICES.md`;
+- run the test suite, the performance lab and the planetary rendering benchmark;
+- check custom shaders visually.
 
 `project.godot` still lists the feature tag `"4.4"` because no 4.5 editor has re-saved it. That is harmless; it updates on the next editor save.
 
@@ -142,8 +161,9 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 - It reproduces in a minimal clean project with a two-line custom resource, on both our double build and the official 4.5.1 download. It is a **Godot engine bug**, not project code, and the missing script `uid` in planet files is unrelated (it reproduces with and without one).
 - Likely upstream issue: [godot#87019](https://github.com/godotengine/godot/issues/87019) ("Error accessing custom resource caused by order of preload", targeted for 4.6); related: [#98551](https://github.com/godotengine/godot/issues/98551), [#110394](https://github.com/godotengine/godot/issues/110394).
 - **Fixed in official Godot 4.7.2**: the same minimal project passes there.
+- 2026-10-13: a fresh minimal repro (a resource preloaded alongside its script) did not trigger the bug on either the 4.5.1 or the 4.7.2 double build, so it does not cover the original case. The workaround stays.
 
-**Decision:** until the 4.8 upgrade, no script preloads a planet `.tres`. `BodyRegistry` and `PlanetSurface.HOME` load at runtime instead (`HOME` became a static property using `load()`). The upgrade removes the underlying bug; this is one concrete reason for it (entry 1).
+**Decision:** until the fix is confirmed on our build, no script preloads a planet `.tres`. `BodyRegistry` and `PlanetSurface.HOME` load at runtime instead (`HOME` became a static property using `load()`). The upgrade removes the underlying bug; this is one concrete reason for it (entry 1).
 
 ## 14. Hidden single-planet values found in step 2
 
@@ -153,7 +173,7 @@ Status key: **OK** fits the vision · **Conditional** fits if the noted conditio
 
 ## 15. Camera position in double-precision Forward+ shaders
 
-**The bug:** in Godot 4.5.1 built with `precision=double`, the RD renderers overwrite the translation of `INV_VIEW_MATRIX` with the *negated* camera origin (`render_scene_data_rd.cpp`, `split_double(-cam_transform.origin.x, &ubo.inv_view_matrix[12], ...)`) for their internal double emulation. Custom shaders reading `INV_VIEW_MATRIX[3]` or `CAMERA_POSITION_WORLD` get a wrong camera position. Godot 4.7.2 stores the precision part separately, which suggests it is fixed upstream (verify on upgrade).
+**The bug:** in Godot 4.5.1 built with `precision=double`, the RD renderers overwrite the translation of `INV_VIEW_MATRIX` with the *negated* camera origin (`render_scene_data_rd.cpp`, `split_double(-cam_transform.origin.x, &ubo.inv_view_matrix[12], ...)`) for their internal double emulation. Custom shaders reading `INV_VIEW_MATRIX[3]` or `CAMERA_POSITION_WORLD` get a wrong camera position. **Still present in the 4.7.2 double build** (verified 2026-10-13): for a camera at (1000, 2000, −3000), `CAMERA_POSITION_WORLD` reads (−980, −1995, 2991) on both 4.5.1 and 4.7.2. Recheck on 4.8.
 
 **Effect found:** below about 30 m the ocean's mirrored sky and clouds turned white with black holes (view rays pointed the wrong way).
 

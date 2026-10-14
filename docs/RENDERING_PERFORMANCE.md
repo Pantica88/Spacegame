@@ -253,6 +253,23 @@ At High, about 12–13 ms of GPU time per outdoor frame at 1080p on the RX 580:
 2. **Ocean patch: about 6.7 ms at the surface, 3.6 ms at 12 km.** About 4.8 ms is fragment work (four `untiled` normal layers with three reads each, sixteen swell-gradient reads plus eight sea-state reads, the four-sample mirrored cloud deck, and screen and depth reads). About 2 ms is vertex work (196k vertices, each with three atmosphere integrations, two of them on the light loop).
 3. **Terrain and water haze from orbit: about 1–2 ms at High.** This is per-pixel integration over the whole disc.
 
+## Engine 4.7.2
+
+On 2026-10-13 the project moved from Godot 4.5.1 to 4.7.2, both double-precision source builds ([FOUNDATION_REVIEW.md](FOUNDATION_REVIEW.md), entry 1). All other numbers in this report are from 4.5.1. The same benchmark with the High preset, clouds on, one run per engine:
+
+| Scenario | 4.5.1 FPS / GPU ms | 4.7.2 FPS / GPU ms | Draw calls 4.5.1 → 4.7.2 |
+|---|---|---|---|
+| Workshop, stationary rocket | 525 / 1.67 | 574 / 1.52 | 777 → 697 |
+| Surface, daylight | 74 / 12.27 | 75 / 12.11 | 368 → 144 |
+| Surface, sunset | 72 / 12.61 | 72 / 12.60 | 282 → 282 |
+| Ascent, 12 km, engines on | 68 / 13.22 | 69 / 13.09 | 300 → 146 |
+| Upper atmosphere, 60 km | 73 / 12.53 | 75 / 12.14 | 352 → 145 |
+| Low orbit, 150 km | 84 / 10.48 | 89 / 10.25 | 286 → 156 |
+| High orbit, 1,600 km, whole planet | 111 / 8.17 | 112 / 8.13 | 39 → 39 |
+| Night side, 300 km, lit limb | 130 / 6.60 | 139 / 6.55 | 8 → 8 |
+
+`test_packaged_rendering.gd` passes on a 4.7.2 release export, run through the test-only template. Captures match 4.5.1 within the noise floor (mean difference ≤ 0.5 display levels; the largest value is the animated ocean). The fewer draw calls in 4.7.2 come from the launch complex, which lies outside these views but was still drawn by 4.5.1. The planetary bottlenecks described above are shader work and are unchanged by the engine version.
+
 ## Recommended next steps
 
 1. **Ocean (largest planetary item at sea level, about 4–6 ms available):**
@@ -263,14 +280,14 @@ At High, about 12–13 ms of GPU time per outdoor frame at 1080p on the RX 580:
 2. **Clouds:** once the current cloud work lands, give it the same attribution treatment. The benchmark's `full` vs `no_clouds` variants already isolate it. The compute-shader prototypes are a Forward+ path to lower cost.
 3. **Orbital terrain haze:** if more orbital headroom is needed, an aerial-perspective volume (froxel) pass would replace per-pixel terrain haze integration. Under High it is no longer the limiting factor.
 4. **Wider hardware coverage:** run `tests/benchmark_planet_rendering.gd` on an integrated GPU and an NVIDIA card, and at 1440p and 4K, before choosing the shipped default for slower machines. Also rerun the performance lab (`./perf.sh`) for the in-mission checkpoints.
-5. **Benchmark environment:** unset `GODOT_BIN` or point it at the 4.5.1 double build in shells used for performance work.
+5. **Benchmark environment:** unset `GODOT_BIN`, or point it at the double build (now 4.7.2 in `~/godot-double/src-4.7`), in shells used for performance work. The official downloads are single precision.
 
 ## Reproducing
 
 Run in a graphical session with nothing else using the GPU:
 
 ```bash
-export GODOT_BIN=$HOME/godot-double/src/bin/godot.linuxbsd.editor.double.x86_64
+export GODOT_BIN=$HOME/godot-double/src-4.7/bin/godot.linuxbsd.editor.double.x86_64   # 4.7.2 double
 # One run per preset. Captures and results.json go to BENCH_OUT.
 for q in reference ultra high medium low; do
   BENCH_QUALITY=$q BENCH_VARIANTS=full,no_clouds BENCH_OUT=/tmp/planet-bench/$q \

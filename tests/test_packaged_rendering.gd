@@ -1,7 +1,11 @@
 extends SceneTree
 ## Exercise the resources in a SHIPPING executable, not the working project.
+## Since Godot 4.6, export templates refuse --script and --main-pack unless built
+## with disable_path_overrides=no, so shipped builds stay locked down. Run the
+## exported .pck through the test-only template instead (docs/FOUNDATION_REVIEW.md, entry 1):
 ## APHELION_RENDER_DIR=/tmp/packaged XDG_DATA_HOME=/tmp/aphelion-render-profile \
-##   build/linux/APHELION.x86_64 --audio-driver Dummy --script /absolute/path/to/this.gd
+##   ~/godot-double/src-4.7/bin/godot.linuxbsd.template_debug.double.x86_64.testing \
+##   --main-pack build/<version>/linux/APHELION.pck --audio-driver Dummy --script /absolute/path/to/this.gd
 ## Launch outside the project directory. Screenshots contain the full game UI.
 
 var game: Node

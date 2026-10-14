@@ -101,7 +101,7 @@ This ascent profile is exercised by the flight simulation tests using continuous
 
 The game saves your latest design, flight records, and completed contracts locally. It does not save an active flight for later resumption. The pause menu contains sound and fullscreen controls and engine credits.
 
-The initial content uses procedural meshes, project-authored graphics, and generated engine audio. The game runs on Godot 4.5.1; its license and complete engine component notices are included in **THIRD_PARTY_NOTICES.md**.
+The initial content uses procedural meshes, project-authored graphics, and generated engine audio. The game runs on Godot 4.7.2; its license and complete engine component notices are included in **THIRD_PARTY_NOTICES.md**.
 """
 
 
