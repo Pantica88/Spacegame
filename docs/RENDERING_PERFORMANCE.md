@@ -1,5 +1,7 @@
 # Planetary rendering performance
 
+> **2026-10-14:** the cloud figures below measure the previous cloud renderer, since replaced; current cloud costs are in [CLOUDS.md](CLOUDS.md#performance).
+
 Investigation and optimization of atmospheric scattering, terrain and planetary rendering, 13 October 2026. Branch `rendering-performance`.
 
 ## Summary

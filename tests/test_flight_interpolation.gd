@@ -39,7 +39,7 @@ func _run() -> void:
 		assert(world._planet.position.distance_to(previous_position) > 7.0, "Horizon does not hold then jump at the simulation cadence")
 		previous_position = world._planet.position
 		var observer: Vector3 = (world.camera.global_position - world._planet.global_position) * 0.001
-		for material in [world._planet.material_override, world._sky_material, world._clouds.material_override]:
+		for material in [world._planet.material_override, world._sky_material, world._clouds.composite_material]:
 			assert(Vector3(material.get_shader_parameter("camera_planet_km")).distance_to(observer) < 0.0001, "Terrain, sky and clouds use the displayed camera/planet pose")
 		var expected_focus: Vector3 = world._rocket.transform * Vector3(0, world._capsule_center_local, 0)
 		assert(world._camera_focus.distance_to(expected_focus) < 0.001, "Camera tracks the displayed vessel attitude")

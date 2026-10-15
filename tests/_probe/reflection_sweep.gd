@@ -41,13 +41,8 @@ func _run() -> void:
 	if OS.get_environment("PROBE_HIDE_CLOUDS") != "":
 		# Hide the deck from the camera only; its uniforms (and the water's
 		# mirrored clouds) still update, so reflections can be seen from above.
-		hover._clouds.layers = 1 << 19
+		hover._clouds.composite.layers = 1 << 19
 		hover.camera.cull_mask &= ~(1 << 19)
-	if OS.get_environment("PROBE_OLD_DECK") != "":
-		# Diagnostic: restore the former cutoff above the low cloud deck.
-		var old := Shader.new()
-		old.code = ocean.shader.code.replace("float cloud_weight = reflectance * cloud_reflection_strength;", "float deck_top = cloud_bottom_km() + cloud_thickness_km * cloud_deck_fraction; float below_deck = 1.0 - smoothstep(deck_top, deck_top + 0.5, length(camera_planet_km)); float cloud_weight = reflectance * below_deck * cloud_reflection_strength;")
-		ocean.shader = old
 	var first := true
 	for alt_text in OS.get_environment("PROBE_ALTS").split(","):
 		var alt := float(alt_text)

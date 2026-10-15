@@ -1,5 +1,6 @@
 extends SceneTree
 ## Godot 4.5.1 graphical benchmark; renders paired ablations with vsync disabled.
+const CloudPass = preload("res://scripts/cloud_render_pass.gd")
 const World = preload("res://scripts/world_view.gd")
 const Surface = preload("res://scripts/planet_surface.gd")
 var results: Array[Dictionary] = []
@@ -31,9 +32,7 @@ func _run() -> void:
 			direction = candidate
 			break
 	var viewport := root.get_viewport_rid()
-	var clouds: RID = world._clouds.lowres_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(viewport, true)
-	RenderingServer.viewport_set_measure_render_time(clouds, true)
 	for scenario in [{"name":"close", "altitude":3.0,"distance":25.0}, {"name":"zoom_90m", "altitude":3.0,"distance":90.0}, {"name":"zoom_500m", "altitude":3.0,"distance":500.0}, {"name":"altitude_500m", "altitude":500.0,"distance":90.0}, {"name":"altitude_6km", "altitude":6000.0,"distance":90.0}, {"name":"altitude_22km", "altitude":22000.0,"distance":90.0}, {"name":"altitude_100km", "altitude":100000.0,"distance":90.0}]:
 		world._pitch = 0.35
 		world._distance = scenario.distance
@@ -71,7 +70,7 @@ func _run() -> void:
 					samples[mode].frame.append(float(now - previous) / 1000.0)
 					previous = now
 					samples[mode].gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(viewport))
-					samples[mode].cloud_gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(clouds) if mode != "no_clouds" else 0.0)
+					samples[mode].cloud_gpu.append(maxf(CloudPass.captured_gpu_ms(), 0.0) if mode != "no_clouds" else 0.0)
 		for mode in samples:
 			var gpu: Array[float] = []
 			var cloud_gpu: Array[float] = []

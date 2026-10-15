@@ -66,9 +66,6 @@ func _run() -> void:
 	var warmup_end := last_frame_us + int(float(config.get("warmup_seconds", 2.0)) * 1000000.0)
 	while Time.get_ticks_usec() < warmup_end:
 		await _sample("warmup")
-	var noise: NoiseTexture3D = game.world._clouds.material_override.get_shader_parameter("cloud_noise")
-	if noise.get_data().is_empty():
-		await noise.changed
 	var actual_size := root.size
 	var expected: Array = config.get("expected_resolution", [1280, 720])
 	if actual_size != Vector2i(int(expected[0]), int(expected[1])):
@@ -94,7 +91,7 @@ func _run() -> void:
 		"viewport": [actual_size.x, actual_size.y], "seed": int(config.get("seed", 17171)),
 		"fixture_version": FIXTURE_VERSION, "physics_hz": Engine.physics_ticks_per_second,
 		"mode": "native-physics-gameplay-checkpoint", "display_server": DisplayServer.get_name(),
-		"timing_notes": "Frame wall intervals use post-draw boundaries. GPU timers may lag CPU events. GPU is summed over all active viewports, including offscreen clouds. Render CPU includes frame setup; game CPU covers main.gd callbacks only, excluding independently processing child nodes. CPU and GPU overlap; do not add them. Physics uses native 60 Hz scheduling; snapshots skip the journey to each checkpoint."}
+		"timing_notes": "Frame wall intervals use post-draw boundaries. GPU timers may lag CPU events. GPU is summed over all active viewports; the cloud march runs inside the main one. Render CPU includes frame setup; game CPU covers main.gd callbacks only, excluding independently processing child nodes. CPU and GPU overlap; do not add them. Physics uses native 60 Hz scheduling; snapshots skip the journey to each checkpoint."}
 	var result := {"schema_version": 1, "scenario": config.scenario,
 		"status": "ok" if errors.is_empty() else "error", "errors": errors,
 		"metadata": metadata, "setup_ms": setup_ms, "first_frame_ms": first_frame_ms,
@@ -145,7 +142,7 @@ func _sample(phase: String) -> void:
 func _collect_viewports(node: Node) -> void:
 	if node == root or node is SubViewport:
 		measured_viewports.append(node)
-	# Cloud viewports are internal children and still consume GPU time.
+	# Internal viewports (the map) are children too and still consume GPU time.
 	for child in node.get_children(true):
 		_collect_viewports(child)
 
@@ -254,7 +251,7 @@ func _validate_fixture() -> void:
 		errors.append("Launch never produced thrust")
 	if scenario == "staging" and not game.perf_seen.detached:
 		errors.append("Staging never produced detached debris")
-	if scenario == "dense_clouds" and not game.world._clouds.visible:
+	if scenario == "dense_clouds" and not game.world._clouds.has_clouds():
 		errors.append("Dense cloud fixture did not render clouds")
 	if scenario == "map" and not game.map_panel.is_visible_in_tree():
 		errors.append("Map viewport was not visible")

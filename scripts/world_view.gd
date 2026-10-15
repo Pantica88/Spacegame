@@ -71,7 +71,7 @@ var _hangar: Node3D
 var _hangar_floor: Node3D
 var _hangar_walls: Array[Node3D] = []
 var _planet: MeshInstance3D
-var _clouds: MeshInstance3D
+var _clouds: Node3D
 var _planet_lod := 0
 var _moons: Array[MeshInstance3D] = []
 var _moon_parents: Array[int] = []
@@ -1011,6 +1011,7 @@ func _make_planet() -> void:
 	_ocean.configure(PlanetSurface.home())
 	_flight_location.add_child(_ocean)
 	_clouds.add_reflection(_ocean.material())
+	_clouds.add_shadow_receiver(material)
 
 func _update_planet_lod(altitude: float) -> void:
 	# Coarse high-relief triangles can fold into visible speckles when the

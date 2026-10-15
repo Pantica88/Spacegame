@@ -31,14 +31,9 @@ func _run() -> void:
 	for config in OS.get_environment("PROBE_CONFIGS").split(","):
 		ocean.set_shader_parameter("sky_reflection_strength", 0.0 if config == "old" else 1.0)
 		ocean.set_shader_parameter("sky_view_samples", 16 if config == "sky16" else 6)
-		# Configs "b<brightness>d<density>" tune mirrored clouds, e.g. b0.6d2.
-		var brightness := 1.0
-		var density := 1.0
-		if config.begins_with("b") and config.contains("d"):
-			brightness = float(config.substr(1, config.find("d") - 1))
-			density = float(config.substr(config.find("d") + 1))
+		# Configs "b<brightness>" tune mirrored clouds, e.g. b0.6.
+		var brightness := float(config.substr(1)) if config.begins_with("b") else 1.0
 		ocean.set_shader_parameter("cloud_reflection_brightness", brightness)
-		ocean.set_shader_parameter("cloud_reflection_density", density)
 		var image: Image = await _grab(300)
 		print("STATE alt=%.0f ocean=%s fade=%.2f sun_up=%.3f planet_visible=%s view=%s" % [hover._last_altitude, hover._ocean.visible, hover._ocean.fade, hover._sun_direction.dot(hover._surface_up), hover._planet.visible, hover._view_state()])
 		print("LIGHT ambient=%s energy=%.4f sun_energy=%.3f glow=%s cloud_light=%.3f refl=%s" % [hover._environment.ambient_light_color, hover._environment.ambient_light_energy, hover._sun.light_energy, hover._cloud_glow, hover._cloud_light, hover._sky_material.get_shader_parameter("reflection_strength")])

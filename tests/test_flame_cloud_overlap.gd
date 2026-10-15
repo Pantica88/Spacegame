@@ -16,7 +16,7 @@ func _run() -> void:
 	var flame: Node3D = world._engine_flames.values()[0][0]
 	for child in flame.get_children():
 		if child is MeshInstance3D: materials.append(child.material_override)
-	var cloud_priority: int = world._clouds.material_override.render_priority
+	var cloud_priority: int = world._clouds.composite_material.render_priority
 	for material in materials:
 		assert(material.render_priority > cloud_priority, "Nearby flame and heat materials draw after clouds")
 		assert(not material.shader.code.contains("depth_test_disabled"), "Effects remain occluded by the hull and terrain")
@@ -30,13 +30,22 @@ func _run() -> void:
 		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 		camera.size = 4.0
 		camera.current = true
-		var cloud := Clouds.new()
-		root.add_child(cloud)
-		# Isolate compositing from weather/noise: a black cloud covers the upper
-		# half of the frame, exactly where the reported flame cut occurs.
+		# Isolate compositing from weather and the march: a screen triangle drawn
+		# exactly as the cloud composite is (its mesh, priority and blending),
+		# with a black cloud over the upper half of the frame, where the
+		# reported flame cut occurs.
+		var layer: Node3D = Clouds.new()
+		var cloud := MeshInstance3D.new()
+		cloud.mesh = layer.composite.mesh
+		cloud.custom_aabb = layer.composite.custom_aabb
+		layer.free()
 		var composite := Shader.new()
-		composite.code = "shader_type spatial; render_mode unshaded, depth_draw_never, depth_test_disabled, cull_disabled; void vertex(){POSITION=vec4(VERTEX.xy,1.0,1.0);} void fragment(){if(SCREEN_UV.y>0.5){discard;} ALBEDO=vec3(0.0); ALPHA=1.0;}"
-		cloud.material_override.shader = composite
+		composite.code = "shader_type spatial; render_mode unshaded, blend_premul_alpha, depth_draw_never, depth_test_disabled, cull_disabled; void vertex(){POSITION=vec4(VERTEX.xy,0.5,1.0);} void fragment(){if(SCREEN_UV.y>0.5){discard;} ALBEDO=vec3(0.0); ALPHA=1.0;}"
+		var cloud_material := ShaderMaterial.new()
+		cloud_material.shader = composite
+		cloud_material.render_priority = Clouds.RENDER_PRIORITY
+		cloud.material_override = cloud_material
+		root.add_child(cloud)
 		var effect := MeshInstance3D.new()
 		effect.mesh = QuadMesh.new()
 		effect.mesh.size = Vector2(2, 2)

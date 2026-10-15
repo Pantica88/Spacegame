@@ -1,6 +1,7 @@
 extends SceneTree
 ## Flies the saved rocket straight up at full throttle with SAS, staging each
 ## time thrust drops to zero while climbing, and logs performance each second.
+const CloudPass = preload("res://scripts/cloud_render_pass.gd")
 var main: Node
 
 func _initialize() -> void: _run.call_deferred()
@@ -20,9 +21,7 @@ func _run() -> void:
 	var f = main.flight
 	var clouds: Node = main.world._clouds
 	var main_rid := root.get_viewport_rid()
-	var low_rid: RID = clouds.lowres_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(main_rid, true)
-	RenderingServer.viewport_set_measure_render_time(low_rid, true)
 	main.sas = true
 	main._set_throttle(1.0)
 	main._stage()
@@ -46,7 +45,7 @@ func _run() -> void:
 		sec.cpu.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
 		sec.phys.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
 		sec.gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(main_rid))
-		sec.cloud.append(RenderingServer.viewport_get_measured_render_time_gpu(low_rid) if clouds.is_visible_in_tree() else 0.0)
+		sec.cloud.append(maxf(CloudPass.captured_gpu_ms(), 0.0) if clouds.is_drawing() else 0.0)
 		var s: Dictionary = f.state
 		var climbing := float(s.get("vertical_speed", 0.0)) > 0.0
 		if float(s.get("thrust", 0.0)) <= 0.0 and climbing and not bool(s.get("capsule_only", false)):

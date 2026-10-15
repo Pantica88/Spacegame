@@ -793,12 +793,11 @@ func _prewarm_flight_effects() -> void:
 	world.prewarm_effects(false)
 	world.sync_flight(flight.telemetry(), 0)
 	if DisplayServer.get_name() != "headless":
-		await world._clouds.prewarm_variants()
+		await world._clouds.prewarm()
 		map_panel.show()
 		await map_instrument.prewarm_views()
 		map_panel.hide()
-		# Restore the flight/cloud viewports before uncovering the launchpad.
-		world._clouds._sync_lowres()
+		# Let the flight view and its clouds draw again before uncovering the launchpad.
 		await RenderingServer.frame_post_draw
 
 func _return_workshop() -> void:
@@ -1428,13 +1427,13 @@ func _smoke_test() -> void:
 	assert(get_viewport().disable_3d)
 	assert(world.rendering_suspended)
 	assert(map_instrument.viewport.render_target_update_mode == SubViewport.UPDATE_ALWAYS)
-	world._clouds._sync_lowres()
-	assert(world._clouds.lowres_viewport().render_target_update_mode == SubViewport.UPDATE_DISABLED)
+	# The map turns the flight view's 3D off; the cloud march must stop with it.
+	world._clouds._before_draw()
+	assert(not world._clouds.is_drawing())
 	_toggle_map()
 	assert(not world.rendering_suspended and not get_viewport().disable_3d)
-	world._clouds._sync_lowres()
-	var clouds_drawn: bool = world._clouds.integrates_offscreen() and world._clouds.is_visible_in_tree()
-	assert((world._clouds.lowres_viewport().render_target_update_mode == SubViewport.UPDATE_ALWAYS) == clouds_drawn)
+	world._clouds._before_draw()
+	assert(world._clouds.is_drawing() == (world._clouds.render_pass() != null and world._clouds.has_clouds()))
 	assert(world._planet.position.is_equal_approx(FlightModel.PLANET_CENTER-Vector3(flight.state.position)))
 	_toggle_map()
 	_toggle_pause()

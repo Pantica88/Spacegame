@@ -51,7 +51,7 @@ Each trial draws the checkpoint during a wall-time warmup, then advances a fixed
 The HTML report provides per-scenario median, p95, p99, maximum and percentage of frames over 16.67 ms, separate GPU timing, interactive per-repeat traces, warmup traces, event markers, startup timing, screenshots and baseline deltas. Hover over the trace to inspect a sample. Expand analysis using `frames.csv`, `summary.json`, or each trial's `result.json` and `godot.log`.
 
 - **Frame time:** wall interval between completed draws. This includes scheduling, CPU work, rendering and stalls; it is not isolated GPU time. Consistent 60 FPS requires meeting the frame budget, especially at the tail, not merely a good median.
-- **GPU time:** sum of measured active viewports, including internal offscreen cloud rendering and both map viewports. Timer results can lag CPU events. Zero-only GPU captures are invalid.
+- **GPU time:** sum of measured active viewports, including both map viewports. The cloud march runs as compute passes inside the main viewport's frame. Timer results can lag CPU events. Zero-only GPU captures are invalid.
 - **Render CPU:** active-viewport render CPU plus renderer frame setup. This excludes script processing.
 - **Main physics/process CPU:** measured main-game callbacks per rendered frame. Independently processing child nodes are excluded. Several physics ticks may occur in one frame; zero ticks is also normal. CPU and GPU overlap: do not add their timings as if they were sequential.
 - **First frame:** fixture setup and fixture-to-first-draw are separate from engine-start-to-first-draw. Fresh application processes do not guarantee a cold driver shader cache. Warmup and measured event spikes remain separate in the report.
@@ -74,6 +74,6 @@ python3 -B -m unittest discover -s tests -p 'test_perf_*.py'
 ./tools/run.sh --headless --check-only --script res://tests/performance/run_scenario.gd
 ```
 
-Then use a graphical quick run to verify actual GPU measurement and fixture assertions. Existing `tools/check.sh` remains the broader gameplay regression suite. The specialized cloud occupancy/image benchmarks and their documented validation remain useful for shader changes; the gameplay lab complements those tests.
+Then use a graphical quick run to verify actual GPU measurement and fixture assertions. Existing `tools/check.sh` remains the broader gameplay regression suite. For cloud shader changes, the probes and checks in [CLOUDS.md](CLOUDS.md#checks) measure and compare the clouds alone; the gameplay lab complements them.
 
 [Implementation validation, artifacts and known existing regression failures](PERFORMANCE_LAB_VALIDATION.md).

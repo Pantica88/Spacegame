@@ -177,6 +177,8 @@ static func _cosine_bounds(first: float, last: float) -> Vector2:
 ## Source-over coverage preserves existing clouds through holes in the tile;
 ## painting another category smoothly exchanges weights without dark seams.
 func stamp(center: Vector3, angular_radius: float, tile: Image, strength: float, rotation: float = 0.0, erase: bool = false, feather: float = 0.5) -> bool:
+	if not paint_layers.is_empty():
+		return stamp_layer(center, angular_radius, tile, strength, rotation, erase, feather)
 	if center.length_squared() < 0.000001 or strength <= 0.0 or angular_radius <= 0.0:
 		return false
 	if not erase and (tile == null or tile.is_empty()):
@@ -318,3 +320,72 @@ static func _bounded_weights(value: Color) -> Color:
 				largest = index
 		channels[largest] -= excess
 	return Color(channels[0] / 255.0, channels[1] / 255.0, channels[2] / 255.0, channels[3] / 255.0)
+
+# Layers are stored bottom-to-top. The image above remains the runtime composite
+# so existing renderers and old planet resources keep the same weather contract.
+@export var paint_layers: Array[Dictionary] = []
+@export var active_layer: int = 0
+var _paint_worker: Resource
+
+func ensure_layers() -> void:
+	if paint_layers.is_empty():
+		paint_layers.append({"name": "Clouds 1", "visible": true, "locked": false, "opacity": 1.0, "image": snapshot()})
+	active_layer = clampi(active_layer, 0, paint_layers.size() - 1)
+
+func layer_editable() -> bool:
+	ensure_layers()
+	return paint_layers[active_layer].visible and not paint_layers[active_layer].locked
+
+func add_paint_layer() -> void:
+	ensure_layers()
+	var blank := Image.create(image.get_width(), image.get_height(), false, Image.FORMAT_RGBA8)
+	blank.fill(Color(0, 0, 0, 0))
+	paint_layers.append({"name": "Clouds %d" % (paint_layers.size() + 1), "visible": true, "locked": false, "opacity": 1.0, "image": blank})
+	active_layer = paint_layers.size() - 1
+	rebuild_layers()
+
+func stamp_layer(center: Vector3, radius: float, tile: Image, strength: float, rotation: float, erase: bool, feather: float) -> bool:
+	if not layer_editable(): return false
+	if _paint_worker == null: _paint_worker = get_script().new()
+	_paint_worker.image = paint_layers[active_layer].image
+	var modified: bool = _paint_worker.stamp(center, radius, tile, strength, rotation, erase, feather)
+	if modified:
+		var latitude := acos(clampf(center.normalized().y, -1.0, 1.0))
+		var span := clampf(radius, 0.0001, PI * 0.49)
+		rebuild_layers(maxi(0, floori((latitude - span) / PI * image.get_height() - 0.5)), mini(image.get_height() - 1, ceili((latitude + span) / PI * image.get_height() - 0.5)))
+	return modified
+
+func replace_active_layer(source: Image) -> bool:
+	if not layer_editable(): return false
+	var replacement := source.duplicate() as Image
+	if replacement.get_size() != image.get_size():
+		replacement.resize(image.get_width(), image.get_height())
+	paint_layers[active_layer].image = replacement
+	rebuild_layers()
+	return true
+
+func rebuild_layers(first_row: int = 0, last_row: int = -1) -> void:
+	if paint_layers.is_empty(): return
+	var result := image.duplicate() as Image
+	if last_row < 0: last_row = image.get_height() - 1
+	result.fill_rect(Rect2i(0, first_row, image.get_width(), last_row - first_row + 1), Color(0, 0, 0, 0))
+	for layer in paint_layers:
+		if not layer.visible: continue
+		var source: Image = layer.image
+		for y in range(first_row, last_row + 1):
+			for x in range(result.get_width()):
+				var top := source.get_pixel(x, y) * clampf(float(layer.get("opacity", 1.0)), 0.0, 1.0)
+				var coverage := clampf(top.r + top.g + top.b + top.a, 0.0, 1.0)
+				if coverage > 0.0:
+					result.set_pixel(x, y, _bounded_weights(top + result.get_pixel(x, y) * (1.0 - coverage)))
+	image = result
+
+func layer_snapshot() -> Resource:
+	var copy: Resource = get_script().new()
+	copy.image = snapshot()
+	copy.active_layer = active_layer
+	for layer in paint_layers:
+		var entry: Dictionary = layer.duplicate()
+		entry.image = layer.image.duplicate()
+		copy.paint_layers.append(entry)
+	return copy

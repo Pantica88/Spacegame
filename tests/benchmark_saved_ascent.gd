@@ -3,8 +3,8 @@ extends SceneTree
 ## Run with --profile-gpu. ASCENT_COMPARE=1 cycles rendering ablations.
 ## ASCENT_OUTPUT sets the capture/report directory; ASCENT_LIMIT defaults to 40 km.
 ## ASCENT_MODES=normal,no_wake isolates the wake while preserving hull heating.
-const Clouds = preload("res://scripts/cloud_layer.gd")
-const MODES := ["normal", "no_heat", "no_clouds", "no_cloud_mask", "no_cloud_detail", "no_hud"]
+const CloudPass = preload("res://scripts/cloud_render_pass.gd")
+const MODES := ["normal", "no_heat", "no_clouds", "no_hud"]
 const MODE_FRAMES := 18
 const SETTLE_FRAMES := 5
 var main: Node
@@ -29,8 +29,6 @@ func _apply_ablation() -> void:
 		var active: bool = float(wake._material.get_shader_parameter("strength")) > 0.005 and wake.flow_direction.length_squared() > 0.5
 		wake.visible = mode not in ["no_heat", "no_wake"] and active and not world._heated_meshes.is_empty()
 	world._clouds.visible = mode != "no_clouds"
-	world._clouds._stencil_mask.visible = mode != "no_cloud_mask" and mode != "no_clouds"
-	world._clouds._detail_pass.visible = mode != "no_cloud_detail" and mode != "no_clouds"
 	main.ui.visible = mode != "no_hud"
 
 func _passes() -> Dictionary:
@@ -79,18 +77,15 @@ func _run() -> void:
 	await main._roll_out()
 	var flight = main.flight
 	var world = main.world
-	world._clouds.set_composite_variant(Clouds.CompositeVariant.SPLIT)
 	main.sas = true
 	main._set_throttle(1.0)
 	main._stage()
 	assert(main.warp == 1.0, "Benchmark flies at normal time")
 	var viewport := root.get_viewport_rid()
-	var cloud_viewport: RID = world._clouds.lowres_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(viewport, true)
-	RenderingServer.viewport_set_measure_render_time(cloud_viewport, true)
 	RenderingServer.frame_pre_draw.connect(_apply_ablation)
 	started = true
-	print("ASCENT engine=%s viewport=%s parts=%d stages=%d stencil=%s compare=%s" % [Engine.get_version_info().string, root.size, main.design.assembly.parts.size(), main.design.assembly.stages.size(), world._clouds.uses_stencil_split(), comparing])
+	print("ASCENT engine=%s viewport=%s parts=%d stages=%d compare=%s" % [Engine.get_version_info().string, root.size, main.design.assembly.parts.size(), main.design.assembly.stages.size(), comparing])
 	var limit := float(OS.get_environment("ASCENT_LIMIT")) if not OS.get_environment("ASCENT_LIMIT").is_empty() else 40000.0
 	var start := Time.get_ticks_usec()
 	var last := start
@@ -112,7 +107,7 @@ func _run() -> void:
 		if frame > skip_until and (not comparing or frame % MODE_FRAMES >= SETTLE_FRAMES):
 			_record(int(altitude / 2000.0) * 2, {"frame_ms": frame_ms,
 				"gpu_total_ms": p.get("total", 0.0), "gpu_main_ms": RenderingServer.viewport_get_measured_render_time_gpu(viewport),
-				"gpu_cloud_ms": RenderingServer.viewport_get_measured_render_time_gpu(cloud_viewport) if world._clouds.lowres_viewport().render_target_update_mode != SubViewport.UPDATE_DISABLED else 0.0,
+				"gpu_cloud_ms": maxf(CloudPass.captured_gpu_ms(), 0.0) if world._clouds.is_drawing() else 0.0,
 				"transparent_ms": p.get("Render 3D Transparent Pass", 0.0), "opaque_ms": p.get("Render Opaque Pass", 0.0),
 				"canvas_ms": p.get("Render CanvasItems", 0.0), "depth_ms": p.get("Render Depth Pre-Pass", 0.0),
 				"render_cpu_ms": RenderingServer.viewport_get_measured_render_time_cpu(viewport) + RenderingServer.get_frame_setup_time_cpu()})
@@ -145,7 +140,7 @@ func _run() -> void:
 		row["frame_p95_ms"] = times[mini(times.size() - 1, int(times.size() * 0.95))]
 		rows.append(row)
 		print("BAND " + JSON.stringify(row))
-	var report := {"engine": Engine.get_version_info().string, "resolution": str(root.size), "parts": main.design.assembly.parts.size(), "stencil_split": world._clouds.uses_stencil_split(), "target_reached": float(flight.state.altitude) >= limit, "rows": rows}
+	var report := {"engine": Engine.get_version_info().string, "resolution": str(root.size), "parts": main.design.assembly.parts.size(), "target_reached": float(flight.state.altitude) >= limit, "rows": rows}
 	var file := FileAccess.open(output + "/results.json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(report, "\t"))
 	file.close()

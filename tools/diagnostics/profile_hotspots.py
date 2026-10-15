@@ -48,7 +48,7 @@ static func take() -> Dictionary:
         wrapper+=f'\nfunc _probe_original_{name}({args}) -> {ret}:'
         text=text[:match.start()]+wrapper+text[match.end():]
       path.write_text(text)
-    p=DEST/'scripts/cloud_layer.gd';s=p.read_text();s=s.replace('func _probe_original_update_weather(definition: Resource, observer: Vector3, sunlight: Vector3, enabled: bool) -> void:', 'func _probe_original_update_weather(definition: Resource, observer: Vector3, sunlight: Vector3, enabled: bool) -> void:\n\tif OS.get_environment("APHELION_PROBE_VARIANT") == "no_clouds":\n\t\tvisible = false\n\t\t_sync_lowres()\n\t\treturn');p.write_text(s)
+    p=DEST/'scripts/cloud_layer.gd';s=p.read_text();s=s.replace('func _probe_original_update_weather(definition: Resource, observer: Vector3, sunlight: Vector3, enabled: bool) -> void:', 'func _probe_original_update_weather(definition: Resource, observer: Vector3, sunlight: Vector3, enabled: bool) -> void:\n\tif OS.get_environment("APHELION_PROBE_VARIANT") == "no_clouds":\n\t\tvisible = false\n\t\treturn');p.write_text(s)
     p=DEST/'tests/performance/run_scenario.gd';s=p.read_text()
     s=s.replace('\tgame.paused = true\n\t_collect_viewports(root)', '''	game.paused = true
 	var variant := OS.get_environment("APHELION_PROBE_VARIANT")

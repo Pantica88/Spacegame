@@ -1,10 +1,10 @@
 extends SceneTree
-## CPU regression for conservative authored-cloud occupancy and pass visibility.
+## CPU regression for conservative authored-cloud occupancy (cloud_weather_map.gd):
+## has_clouds() decides whether the clouds draw, and get_occupancy_bounds()
+## whether a map has storms. Layer visibility itself is in test_clouds.gd.
 ## Run: tools/run.sh --headless --script res://tests/test_cloud_occupancy.gd
 
 const Weather = preload("res://scripts/cloud_weather_map.gd")
-const Definition = preload("res://scripts/planet_definition.gd")
-const CloudLayer = preload("res://scripts/cloud_layer.gd")
 
 var failures: Array[String] = []
 var sampled_directions := 0
@@ -20,11 +20,10 @@ func _run() -> void:
 	_test_persistence()
 	_test_filtered_support()
 	_test_random_support()
-	_test_renderer_visibility()
 	for failure in failures:
 		push_error(failure)
 	if failures.is_empty():
-		print("PASS: cloud occupancy cache, all channels, edit/load/restore/duplicate invalidation, conservative filtered seam/pole bounds (%d directions, %d occupied), and renderer visibility." % [sampled_directions, occupied_samples])
+		print("PASS: cloud occupancy cache, all channels, edit/load/restore/duplicate invalidation, and conservative filtered seam/pole bounds (%d directions, %d occupied)." % [sampled_directions, occupied_samples])
 	quit(0 if failures.is_empty() else 1)
 
 func check(value: bool, message: String) -> void:
@@ -224,72 +223,3 @@ func _absent(bounds: PackedVector3Array, first: int) -> bool:
 func _contains(bounds: PackedVector3Array, first: int, point: Vector3) -> bool:
 	return point.x >= bounds[first].x and point.x <= bounds[first + 1].x and point.y >= bounds[first].y and point.y <= bounds[first + 1].y and point.z >= bounds[first].z and point.z <= bounds[first + 1].z
 
-func _test_renderer_visibility() -> void:
-	var holder := Node3D.new()
-	root.add_child(holder)
-	var layer := CloudLayer.new()
-	holder.add_child(layer)
-	var planet := Definition.new()
-	planet.cloud_weather = Weather.new()
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(not layer.visible, "Empty authored weather skips the entire cloud pass")
-	planet.cloud_weather.stamp(Vector3.UP, 0.3, _solid(Color(0, 0, 0, 1)), 1.0)
-	var snapshot: Image = planet.cloud_weather.snapshot()
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(layer.visible, "Painting a storm re-enables the cloud pass immediately")
-	planet.cloud_weather.clear()
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(not layer.visible, "Clearing weather hides the previously visible pass")
-	planet.cloud_weather.restore(snapshot)
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(layer.visible, "Restoring authored clouds re-enables the pass")
-	var material := layer.material_override as ShaderMaterial
-	var source := _blank(11, 7)
-	source.set_pixel(0, 1, Color(0.4, 0, 0, 0.6))
-	source.set_pixel(1, 2, Color(0, 0.6, 0, 0.4))
-	planet.cloud_weather.image = source
-	holder.rotation = Vector3(0.31, 1.72, -0.43)
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	var world_to_local: Basis = material.get_shader_parameter("cloud_world_to_local")
-	check(bool(material.get_shader_parameter("cloud_occupancy_enabled")), "Sparse weather selects the bounded shader")
-	var body_radius: float = material.get_shader_parameter("BODY_RADIUS")
-	var cloud_height: float = material.get_shader_parameter("cloud_height_km")
-	var thickness: float = material.get_shader_parameter("cloud_thickness_km")
-	var deck_fraction: float = material.get_shader_parameter("cloud_deck_fraction")
-	var inner := body_radius + cloud_height - thickness * 0.5
-	var outer_low := inner + thickness * deck_fraction
-	var outer_storm := inner + thickness
-	var bounds := PackedVector3Array([
-		material.get_shader_parameter("cloud_low_min"), material.get_shader_parameter("cloud_low_max"),
-		material.get_shader_parameter("cloud_storm_min"), material.get_shader_parameter("cloud_storm_max")])
-	var envelope_samples := 0
-	for latitude in range(25):
-		for longitude in range(49):
-			var local_direction := _direction(longitude / 48.0, latitude / 24.0)
-			var weights: Color = planet.cloud_weather.sample_direction(local_direction)
-			var transformed := world_to_local * (holder.global_basis * local_direction)
-			check(transformed.distance_to(local_direction) < 0.000001, "Rotated planets bind the inverse weather orientation")
-			for fraction in [0.0, 0.5, 1.0]:
-				if weights.r + weights.g + weights.b > 0.0:
-					envelope_samples += 1
-					check(_contains(bounds, 0, transformed * lerpf(inner, outer_low, fraction)), "Regular GPU bounds contain occupied directions over the entire deck")
-				if weights.a > 0.0:
-					envelope_samples += 1
-					check(_contains(bounds, 2, transformed * lerpf(inner, outer_storm, fraction)), "Storm GPU bounds contain occupied directions over the entire tall shell")
-	check(envelope_samples > 100, "Radial shader-bound checks encounter both occupied families")
-	layer.update_weather(planet, Vector3.UP * body_radius * 10.0, Vector3.UP, true)
-	check(not bool(material.get_shader_parameter("cloud_occupancy_enabled")), "Distant observers fall back to full traversal for numerical conservatism")
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(bool(material.get_shader_parameter("cloud_occupancy_enabled")), "Returning from distant orbit restores useful occupancy bounds")
-	source.fill(Color(0.5, 0, 0, 0.5))
-	planet.cloud_weather.image = source
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(not bool(material.get_shader_parameter("cloud_occupancy_enabled")), "Global weather avoids unhelpful occupancy checks")
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, false)
-	check(not layer.visible, "Rendering disable still hides occupied weather")
-	planet.cloud_weather = null
-	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(layer.visible, "Missing authored weather preserves procedural cloud rendering")
-	check(not bool(material.get_shader_parameter("authored_weather")), "Removing authored weather restores the procedural shader path")
-	check(not bool(material.get_shader_parameter("cloud_occupancy_enabled")), "Procedural clouds do not use authored occupancy bounds")
-	holder.free()

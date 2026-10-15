@@ -163,27 +163,29 @@ func _test_renderer_binding() -> void:
 	root.add_child(holder)
 	var layer := CloudLayer.new()
 	holder.add_child(layer)
+	# The ocean mirrors the clouds from the same field and weather texture.
+	var mirror := ShaderMaterial.new()
+	mirror.shader = preload("res://assets/shaders/ocean.gdshader")
+	layer.add_reflection(mirror)
 	var planet := Definition.new()
 	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	var material := layer.material_override as ShaderMaterial
-	check(not bool(material.get_shader_parameter("authored_weather")), "Unpainted planets retain the procedural rendering path")
+	check(layer.field.params.z == 0.0 and layer.has_clouds(), "Unpainted planets keep their procedural weather")
 	planet.cloud_weather = Weather.new()
 	planet.cloud_weather.initialize()
 	planet.cloud_weather.stamp(Vector3.UP, 0.3, _solid(Color(0, 0, 0, 1)), 0.8)
 	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(bool(material.get_shader_parameter("authored_weather")), "The cloud renderer enables authored weather for painted planets")
-	check(material.get_shader_parameter("cloud_weather_map") == planet.cloud_weather.get_texture(), "Editor and flight rendering bind the same authored texture")
+	check(layer.field.params.z == 1.0 and layer.field.weather == planet.cloud_weather, "Painted planets render their authored weather")
+	check(mirror.get_shader_parameter("cloud_weather_map") == planet.cloud_weather.get_texture(), "Flight, editor and ocean bind the same authored texture")
 	var texture: ImageTexture = planet.cloud_weather.get_texture()
 	planet.cloud_weather.stamp(Vector3.UP, 0.3, _solid(Color(1, 0, 0, 0)), 0.5)
 	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(material.get_shader_parameter("cloud_weather_map") == texture, "Painting updates the bound weather texture without replacing it")
+	check(mirror.get_shader_parameter("cloud_weather_map") == texture, "Painting updates the bound weather texture without replacing it")
 	planet.cloud_weather = null
 	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(not bool(material.get_shader_parameter("authored_weather")), "Returning to procedural weather resets the renderer mode")
+	check(layer.field.params.z == 0.0, "Returning to procedural weather resets the renderer mode")
 	planet.atmosphere_height = 0.0
 	layer.update_weather(planet, Vector3.UP * 601.0, Vector3.UP, true)
-	check(not layer.visible, "Airless worlds hide authored and procedural weather")
-	holder.free()
+	check(not layer.has_clouds() and not bool(mirror.get_shader_parameter("cloud_reflection_enabled")), "Airless worlds hide authored and procedural weather")
 
 func _solid(value: Color) -> Image:
 	var result := Image.create(8, 8, false, Image.FORMAT_RGBA8)

@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	if "ocean" in hidden and is_instance_valid(world._ocean): world._ocean.visible = false
 	if map_viewports.is_empty():
 		for viewport in main.find_children("*", "SubViewport", true, false):
-			if viewport != world._clouds.lowres_viewport(): map_viewports[viewport] = viewport.render_target_update_mode
+			map_viewports[viewport] = viewport.render_target_update_mode
 	for viewport in map_viewports:
 		viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED if "map" in hidden else map_viewports[viewport]
 	world._rocket.visible = not "rocket" in hidden
@@ -56,53 +56,6 @@ func _process(_delta: float) -> bool:
 	var sun: Node3D = world.find_child("Sun", true, false)
 	if sun: sun.visible = not "sun" in hidden
 	return false
-
-# Times the main view's transparent pass with stripped composite shaders.
-func _variants() -> void:
-	var material: ShaderMaterial = main.world._clouds.material_override
-	var original: Shader = material.shader
-	var code := original.code
-	var safe_loop := "bool lowres_safe = true;\n\tif (lowres_enabled) {"
-	var mix_call := "vec4 mixed = display_mix_premultiplied(result.rgb, result.a, texture(scene_color, SCREEN_UV).rgb);"
-	var safe_start := code.find("bool lowres_safe = true;")
-	var safe_end := code.find("// Silhouette pixels blend")
-	safe_loop = code.substr(safe_start, safe_end - safe_start)
-	var nomarch := code.replace("return integrate_clouds(ray, clip, frag);", "return upsample_clouds(uv);").replace("vec4 full = integrate_clouds(ray, clip, frag);", "vec4 full = reduced;")
-	var nosafe := code.replace(safe_loop, "bool lowres_safe = true;\n\t")
-	var nomix := code.replace(mix_call, "vec4 mixed = vec4(result.rgb * result.a, result.a);")
-	var bare := nomarch.replace(safe_loop, "bool lowres_safe = true;\n\t").replace(mix_call, "vec4 mixed = vec4(result.rgb * result.a, result.a);")
-	var shaders := {"current": original}
-	var entries := [["nosafe", nosafe], ["bare", bare]]
-	# PROBE_BASELINE=<path>: another composite shader source to compare against.
-	if OS.get_environment("PROBE_BASELINE") != "":
-		entries.append(["baseline", FileAccess.get_file_as_string(OS.get_environment("PROBE_BASELINE"))])
-	for entry in entries:
-		var shader := Shader.new()
-		shader.code = entry[1]
-		shaders[entry[0]] = shader
-	var from := float(OS.get_environment("PROBE_FROM")) if OS.get_environment("PROBE_FROM") != "" else 12000.0
-	var to := float(OS.get_environment("PROBE_ALTITUDE")) if OS.get_environment("PROBE_ALTITUDE") != "" else 22000.0
-	while main.flight.state.altitude < from - 3000.0: await process_frame
-	# Compile every variant before measuring.
-	for name in shaders:
-		material.shader = shaders[name]
-		for i in range(4): await process_frame
-	var samples := {}
-	var frame := 0
-	var names: Array = shaders.keys()
-	while main.flight.state.altitude < to:
-		var name: String = names[(frame / MODE_FRAMES) % names.size()]
-		material.shader = shaders[name]
-		await process_frame
-		frame += 1
-		if frame % MODE_FRAMES < SKIP or main.flight.state.altitude < from: continue
-		var t := _main_transparent()
-		if t > 0.0:
-			if not samples.has(name): samples[name] = []
-			samples[name].append(t)
-	material.shader = original
-	for name in names:
-		print("VARIANT %-8s main transparent %.2f ms  n=%d" % [name, _median(samples.get(name, [])), samples.get(name, []).size()])
 
 func _main_transparent() -> float:
 	var rd := RenderingServer.get_rendering_device()
@@ -169,20 +122,16 @@ func _run() -> void:
 	var limit := float(OS.get_environment("PROBE_ALTITUDE")) if OS.get_environment("PROBE_ALTITUDE") != "" else 42000.0
 	var bands := {}
 	var frame := 0
-	if OS.get_environment("PROBE_VARIANTS") != "":
-		await _variants()
-		quit(0)
-		return
 	if OS.get_environment("PROBE_SHOTS") != "":
 		var out := OS.get_environment("PROBE_OUT")
 		for target in OS.get_environment("PROBE_SHOTS").split(","):
 			while main.flight.state.altitude < float(target): await process_frame
 			for view in [false, true]:
-				RenderingServer.global_shader_parameter_set("cloud_cost_view", view)
+				main.world._clouds.cost_view = view
 				for i in range(4): await process_frame
 				await RenderingServer.frame_post_draw
 				root.get_texture().get_image().save_png("%s/shot_%s_%s.png" % [out, target, "cost" if view else "normal"])
-			RenderingServer.global_shader_parameter_set("cloud_cost_view", false)
+			main.world._clouds.cost_view = false
 		quit(0)
 		return
 	if OS.get_environment("PROBE_PREDRAW") != "":
@@ -202,7 +151,7 @@ func _run() -> void:
 		while main.flight.state.altitude < float(OS.get_environment("PROBE_DUMP")): await process_frame
 		for i in range(5): await process_frame
 		var rd := RenderingServer.get_rendering_device()
-		print("viewports: main=%s lowres=%s" % [root.get_viewport_rid(), main.world._clouds.lowres_viewport().get_viewport_rid()])
+		print("viewports: main=%s" % root.get_viewport_rid())
 		for i in range(rd.get_captured_timestamps_count() - 1):
 			print("TS %-45s %7.3f ms" % [rd.get_captured_timestamp_name(i), (rd.get_captured_timestamp_gpu_time(i + 1) - rd.get_captured_timestamp_gpu_time(i)) / 1e6])
 		quit(0)

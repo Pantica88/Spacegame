@@ -1,5 +1,6 @@
 extends SceneTree
 ## Real game ascent from the pad: frame and GPU time per altitude band.
+const CloudPass = preload("res://scripts/cloud_render_pass.gd")
 var main: Node
 
 func _initialize() -> void:
@@ -17,11 +18,8 @@ func _run() -> void:
 	await main._roll_out()
 	for i in range(30): await process_frame
 	var clouds: Node = main.world._clouds
-	if OS.get_environment("TEMPORAL") == "0": clouds.temporal = false
 	var main_rid := root.get_viewport_rid()
-	var low_rid: RID = clouds.lowres_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(main_rid, true)
-	RenderingServer.viewport_set_measure_render_time(low_rid, true)
 	main._set_throttle(1.0)
 	main._stage()
 	var f = main.flight
@@ -54,7 +52,7 @@ func _run() -> void:
 					fs.append((n - t) / 1000.0)
 					t = n
 					gm.append(RenderingServer.viewport_get_measured_render_time_gpu(main_rid))
-					gl.append(RenderingServer.viewport_get_measured_render_time_gpu(low_rid))
+					gl.append(maxf(CloudPass.captured_gpu_ms(), 0.0))
 				print("HOLD %s %.0f m %-14s frame %6.2f  gpu main %6.2f  cloud pass %6.2f" % [OS.get_environment("VARIANT"), alt, variant, _median(fs), _median(gm), _median(gl)])
 			break
 		if not shot.is_empty() and alt > float(shot):
@@ -67,7 +65,7 @@ func _run() -> void:
 		if not bands.has(band): bands[band] = [[], [], [], 0.0]
 		bands[band][0].append(dt)
 		bands[band][1].append(RenderingServer.viewport_get_measured_render_time_gpu(main_rid))
-		bands[band][2].append(RenderingServer.viewport_get_measured_render_time_gpu(low_rid) if clouds.is_visible_in_tree() else 0.0)
+		bands[band][2].append(maxf(CloudPass.captured_gpu_ms(), 0.0) if clouds.is_drawing() else 0.0)
 		bands[band][3] = float(f.state.get("vertical_speed", 0.0))
 	var keys := bands.keys()
 	keys.sort()

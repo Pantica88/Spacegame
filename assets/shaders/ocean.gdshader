@@ -11,8 +11,9 @@ shader_type spatial;
 //  - Distant water receives the same atmosphere as the terrain.
 //  - The terrain draws a seabed below this surface (terrain.gdshader).
 render_mode blend_mix, cull_disabled, depth_draw_always;
-// Includes atmosphere.gdshaderinc; cloud_layer.gd mirrors its uniforms here.
-#include "res://assets/shaders/clouds_volume.gdshaderinc"
+#include "res://assets/shaders/atmosphere.gdshaderinc"
+// cloud_layer.gd sets the cloud field's uniforms here (add_reflection).
+#include "res://assets/shaders/cloud_field.gdshaderinc"
 #include "res://assets/shaders/water.gdshaderinc"
 #include "res://assets/shaders/renderer_color.gdshaderinc"
 
@@ -89,21 +90,15 @@ uniform float seabed_depth_m = 70.0;
 // map is far coarser than the pad, so the zone is tested analytically.
 uniform vec3 launch_direction_body = vec3(0.0, 0.0, 1.0);
 uniform float launch_dry_radius = 0.0;
-// Cloud reflections sample the cloud volume where the mirrored ray meets the
-// deck base, so they hold at any view angle. cloud_layer.gd sets the volume
-// uniforms and turns this off while the clouds are hidden.
+// Cloud reflections march the cloud field along the mirrored ray from the
+// water, so they hold at any view angle. cloud_layer.gd sets the field and
+// turns this off while the clouds are hidden.
 uniform bool cloud_reflection_enabled = false;
 uniform float cloud_reflection_strength = 1.0;
-// Art controls for mirrored clouds: brightness scales their light; density
-// thickens them (1 - (1 - opacity)^density), so banks read solid over sky.
+// Art control: scales the mirrored clouds' light.
 uniform float cloud_reflection_brightness = 1.0;
-uniform float cloud_reflection_density = 4.0;
-// TEMPORARY A/B (hover preview J): mirrored cloud sun shadow.
-// 0 current 0.5 km cap, 1 sky's column filled with the base density,
-// 2 sky's column with one tap toward the sun (one more volume read),
-// 3 sky's column, sampled through the whole deck and storm caps (mirrored_deck).
-// 0 current, 1 sky column, 2 sky tap, 3 full deck (default, chosen by the owner 2026-10-09).
-uniform int cloud_reflection_shading = 3;
+// World axes to the cloud field's frame (cloud_layer.gd).
+uniform mat3 cloud_to_local = mat3(1.0);
 // The real sky, mirrored behind the clouds. It stands in for the environment
 // reflection, whose cubemap is a fixed gradient (sky.gdshader's cubemap pass).
 uniform float sky_reflection_strength = 1.0;
@@ -124,7 +119,7 @@ varying vec3 air_transmission;
 // across the view, so it is integrated per vertex like the air above.
 varying vec3 sky_light;
 // Air between the water and the cloud base along the same mirror. The sky's
-// clouds are seen through haze (integrate_clouds); without it their mirror
+// clouds are seen through haze (cloud_composite.gdshader); without it their mirror
 // image kept the raw cloud colour, white under a tinted sky.
 varying vec3 cloud_air_light;
 varying vec3 cloud_air_transmission;
@@ -230,106 +225,6 @@ float waveheight(vec2 offset, int mode) {
 	}
 }
 
-// Light of one mirrored cloud sample, as integrate_clouds() lights the sky's.
-vec3 mirror_light(vec3 p, vec3 formation, float height, float bottom, vec3 ray) {
-	float radius = length(p);
-	float density = formation.x * cloud_density_scale;
-	float opacity_scale = authored_weather ? 1.2 : 3.0;
-	float sun_height = dot(p / radius, sun_direction);
-	float horizon = -sqrt(max(0.0, 1.0 - pow(bottom / radius, 2.0)));
-	float daylight = smoothstep(horizon - 0.025, horizon + 0.045, sun_height);
-	float sun_shadow;
-	if (cloud_reflection_shading == 0) {
-		// Gaps above the base let light through; a full column of this density
-		// shaded every base like a storm.
-		float column = min(cloud_thickness_km * cloud_deck_fraction * 0.5 / max(sun_height, 0.2), 0.5);
-		sun_shadow = exp(-density * column * cloud_density_scale * opacity_scale);
-	} else {
-		// The sky's sun column (sun_optical_depth): up to the formation top,
-		// lengthened by a low sun.
-		float top = mix(cloud_deck_fraction, 1.0, formation.z);
-		float optical = cloud_reflection_shading == 2
-			? sun_optical_depth(p, height, top, bottom, 0.0)
-			: formation.x * min(max(top - height, 0.02) / max(sun_height, 0.2), top * 1.5) * cloud_thickness_km;
-		sun_shadow = exp(-optical * cloud_density_scale * opacity_scale);
-	}
-	float sun_cos = dot(ray, sun_direction);
-	float phase = mix(hg_phase(sun_cos, -0.2), hg_phase(sun_cos, 0.5), 0.5);
-	float sunset = 1.0 - smoothstep(0.0, 0.28, max(sun_height, 0.0));
-	vec3 sunlight = mix(vec3(1.0, 0.98, 0.94), vec3(1.0, 0.36, 0.12), sunset);
-	float light_height = clamp(formation.y, 0.0, 1.0);
-	vec3 ambient = vec3(0.002, 0.003, 0.006)
-		+ vec3(0.14, 0.19, 0.27) * daylight * mix(0.5, 1.15, max(light_height, 1.0 - density))
-		+ vec3(0.07, 0.06, 0.045) * daylight * max(sun_height, 0.0) * (1.0 - light_height);
-	float direct = sun_shadow * (0.15 + 0.55 * phase) + 0.2 * pow(sun_shadow, 0.25);
-	return ambient + sunlight * daylight * direct;
-}
-
-// TEMPORARY A/B mode 3: three samples through the low deck along the ray,
-// then one at the storm cap's height, composited front to back like the sky.
-// Each family has its own height band (cells and sheets start above the
-// base, anvils at 76% of the shell), so a single base sample missed them.
-vec4 mirrored_deck(vec3 origin, vec3 ray) {
-	float bottom = cloud_bottom_km();
-	float start = sphere_interval(origin, ray, bottom).y;
-	if (start <= 0.0) { return vec4(0.0); }
-	float opacity_scale = authored_weather ? 1.2 : 3.0;
-	float deck_end = sphere_interval(origin, ray, bottom + cloud_thickness_km * cloud_deck_fraction).y;
-	// Grazing rays cross tens of kilometres of deck; the near part hides the rest.
-	float span = min(deck_end - start, 8.0);
-	vec3 color = vec3(0.0);
-	float remaining = 1.0;
-	for (int i = 0; i < 4; i++) {
-		vec3 p;
-		float length_km;
-		if (i < 3) {
-			p = origin + ray * (start + span * (float(i) + 0.5) / 3.0);
-			length_km = span / 3.0;
-		} else {
-			// Storm cap: only storms reach above the deck, and authored_density
-			// returns without a volume read where none is painted.
-			float cap = sphere_interval(origin, ray, bottom + cloud_thickness_km * 0.76).y;
-			if (cap <= 0.0) { break; }
-			p = origin + ray * cap;
-			length_km = min(cloud_thickness_km * 0.2 / max(dot(ray, normalize(p)), 0.15), 8.0);
-		}
-		float height = (length(p) - bottom) / cloud_thickness_km;
-		vec3 formation = sample_formation(p, height, 0.0, false);
-		float density = formation.x * cloud_density_scale;
-		if (density <= 0.0) { continue; }
-		float opacity = 1.0 - exp(-density * length_km * opacity_scale);
-		color += mirror_light(p, formation, height, bottom, ray) * remaining * opacity;
-		remaining *= 1.0 - opacity;
-	}
-	float alpha = 1.0 - remaining;
-	return alpha < 0.005 ? vec4(0.0) : vec4(color / alpha, alpha);
-}
-
-// Underside of the deck along a mirrored ray: unmultiplied RGB and opacity.
-// One density sample ~175 m into the deck, lit as cloud_layer.gd's
-// _trace_glow estimates surrounding cloud. Each sample costs about 0.5 ms of
-// full-screen water at 1080p, so the base's own density stands in for the
-// sun column: denser bases sit under thicker cloud.
-vec4 mirrored_clouds(vec3 origin, vec3 ray) {
-	float bottom = cloud_bottom_km();
-	float start = sphere_interval(origin, ray, bottom).y;
-	if (start <= 0.0) { return vec4(0.0); }
-	vec3 base = origin + ray * start;
-	// A height step, so grazing rays still reach into the deck.
-	float step_km = 0.35 / max(dot(ray, normalize(base)), 0.15);
-	vec3 p = base + ray * (step_km * 0.5);
-	float radius = length(p);
-	float height = (radius - bottom) / cloud_thickness_km;
-	// Ripples blur the mirror image; the coarse billows alone (one volume
-	// read) are enough, as distant clouds use.
-	vec3 formation = sample_formation(p, height, 0.0, false);
-	float density = formation.x * cloud_density_scale;
-	if (density <= 0.0) { return vec4(0.0); }
-	float opacity_scale = authored_weather ? 1.2 : 3.0;
-	float opacity = 1.0 - exp(-density * step_km * opacity_scale);
-	return opacity < 0.005 ? vec4(0.0) : vec4(mirror_light(p, formation, height, bottom, ray), opacity);
-}
-
 void vertex() {
 	// Unit disc scaled to the current extent, wrapped exactly onto the sphere.
 	vec2 flat_xz = VERTEX.xz * base_extent;
@@ -386,7 +281,7 @@ void vertex() {
 		vec3 mirror_origin = (world_pos - planet_center_world) * 0.001;
 		vec3 mirror_ray = reflect(view_dir, up);
 		sky_light = scatter_air_steps(mirror_origin, mirror_ray, 1.0e6, BODY_RADIUS, AIR_RADIUS, atmosphere_density_scale, sky_view_samples, 1, sky_transmission);
-		float cloud_distance = sphere_interval(mirror_origin, mirror_ray, cloud_bottom_km()).y;
+		float cloud_distance = sphere_interval(mirror_origin, mirror_ray, cloud_radii.y).y;
 		if (cloud_reflection_enabled && cloud_distance > 0.0) {
 			cloud_air_light = scatter_air_steps(mirror_origin, mirror_ray, cloud_distance, BODY_RADIUS, AIR_RADIUS, atmosphere_density_scale, sky_view_samples, 1, cloud_air_transmission);
 		}
@@ -507,11 +402,9 @@ void fragment() {
 	vec4 cloud = vec4(0.0);
 	// Steeper water reflects too little for the clouds to show.
 	if (cloud_reflection_enabled && cloud_weight > 0.03) {
-		cloud = cloud_reflection_shading == 3 ? mirrored_deck(origin_km, bounce) : mirrored_clouds(origin_km, bounce);
-		cloud.rgb = cloud.rgb * cloud_reflection_brightness * cloud_air_transmission + cloud_air_light;
-		// The deck march already has the sky's opacity; the boost thickened
-		// a single base sample.
-		cloud.a = 1.0 - pow(1.0 - cloud.a, cloud_reflection_shading == 3 ? 1.0 : cloud_reflection_density);
+		cloud = cloud_mirror(cloud_to_local * origin_km, cloud_to_local * bounce);
+		// The field's light is linear; this shader mixes in its encoded colour.
+		cloud.rgb = exact_linear_to_srgb(cloud.rgb * cloud_reflection_brightness) * cloud_air_transmission + cloud_air_light;
 		// Ease in from the skip threshold so it leaves no edge.
 		cloud.a *= cloud_reflection_strength * smoothstep(0.03, 0.06, cloud_weight);
 	}

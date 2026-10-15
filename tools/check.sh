@@ -94,8 +94,6 @@ run_check turn_drag --headless --script res://tests/test_turn_drag.gd
 run_check flight_interpolation --headless --script res://tests/test_flight_interpolation.gd
 run_check aerothermal_visuals --headless --script res://tests/test_aerothermal_visuals.gd
 run_check flame_cloud_overlap --headless --script res://tests/test_flame_cloud_overlap.gd
-run_check cloud_composite_split --headless --script res://tests/test_cloud_composite_split.gd
-run_check cloud_deck_reconstruction --headless --script res://tests/test_cloud_deck_reconstruction.gd
 run_check plasma_preview --headless --script res://tests/test_plasma_preview.gd
 run_check distant_debris --headless --script res://tests/test_distant_debris.gd
 run_check detached_physics --headless --script res://tests/test_detached_physics.gd
@@ -140,8 +138,12 @@ run_check planet_camera --headless --script res://tests/test_planet_camera.gd
 run_check planet_editor --headless --script res://tests/test_planet_editor.gd
 run_check planet_bake --headless --script res://tests/test_planet_bake.gd
 run_check planet_bake_storage --headless --script res://tests/test_planet_bake_storage.gd
+run_check clouds --headless --script res://tests/test_clouds.gd
 run_check cloud_painting --headless --script res://tests/test_cloud_painting.gd
 run_check cloud_occupancy --headless --script res://tests/test_cloud_occupancy.gd
+run_check cloud_design --headless --script res://tests/test_cloud_design.gd
+run_check cloud_mix --headless --script res://tests/test_cloud_mix.gd
+run_check cloud_layers --headless --script res://tests/test_cloud_layers.gd
 run_check cloud_editor --headless --script res://tests/test_cloud_editor.gd
 run_check cloud_save --headless --script res://tests/test_cloud_save_persistence.gd
 run_check cloud_vessel_light --headless --script res://tests/test_cloud_vessel_light.gd

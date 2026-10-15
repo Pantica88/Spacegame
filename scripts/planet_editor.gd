@@ -6,6 +6,7 @@ const PlanetList = preload("res://scripts/planet_list.gd")
 const PlanetBaker = preload("res://scripts/planet_baker.gd")
 const CloudWeather = preload("res://scripts/cloud_weather_map.gd")
 const CloudPaintPanel = preload("res://scripts/cloud_paint_panel.gd")
+const CloudLayer = preload("res://scripts/cloud_layer.gd")
 
 const INK := Color("101e25")
 const MINT := Color("7ce5c0")
@@ -60,11 +61,14 @@ var _preview_is_refined := false
 var _preview_resolution := Vector2i.ZERO
 var _preview_surface_cache := {}
 var cloud_tools: ScrollContainer
-var cloud_layer: MeshInstance3D
+var cloud_layer: Node3D
 var brush_ring: MeshInstance3D
 var cloud_tab_active := false
 var painting_clouds := false
-var stroke_before: Image
+var cloud_generation_preview: Resource
+var cloud_preview_settings: Resource
+var selection_stroke := false
+var stroke_before: Resource
 var stroke_changed := false
 var last_cloud_stamp := Vector3.ZERO
 var cloud_undo: Array[Dictionary] = []
@@ -176,7 +180,7 @@ func _build_world() -> void:
 	material.shader = preload("res://assets/shaders/terrain.gdshader")
 	planet.material_override = material
 	world_root.add_child(planet)
-	cloud_layer = preload("res://scripts/cloud_layer.gd").new()
+	cloud_layer = CloudLayer.new()
 	world_root.add_child(cloud_layer)
 	brush_ring = MeshInstance3D.new()
 	brush_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -678,6 +682,9 @@ func _update_preview_mesh() -> void:
 	planet.mesh = terrain.preview_mesh(_preview_resolution.x, _preview_resolution.y) if choice == 0 else terrain.render_mesh_for_lod(choice-1)
 
 func _save_world() -> void:
+	if cloud_generation_preview != null:
+		status.text = "Apply or cancel the cloud preview before saving."
+		return
 	_finish_cloud_stroke()
 	if current_path.is_empty():
 		if status != null:
@@ -716,6 +723,15 @@ func _same_saved_clouds(expected: Resource, actual: Resource) -> bool:
 		if before == null or after == null: return false
 		if before.get_size() != after.get_size() or before.get_format() != after.get_format(): return false
 		if before.get_data() != after.get_data(): return false
+		var expected_layers: Array = expected.cloud_weather.paint_layers
+		var actual_layers: Array = actual.cloud_weather.paint_layers
+		if expected_layers.size() != actual_layers.size(): return false
+		if expected.cloud_weather.active_layer != actual.cloud_weather.active_layer: return false
+		for index in range(expected_layers.size()):
+			if expected_layers[index].get("opacity", 1.0) != actual_layers[index].get("opacity", 1.0): return false
+			for key in ["name", "visible", "locked"]:
+				if expected_layers[index][key] != actual_layers[index][key]: return false
+			if expected_layers[index].image.get_data() != actual_layers[index].image.get_data(): return false
 	if expected.moons.size() != actual.moons.size(): return false
 	for index in range(expected.moons.size()):
 		if not _same_saved_clouds(expected.moons[index], actual.moons[index]): return false
@@ -752,7 +768,7 @@ func _refresh_controls() -> void:
 
 func _update_cloud_preview() -> void:
 	if settings == null or cloud_layer == null or not is_inside_tree(): return
-	cloud_layer.update_weather(settings, camera.get_camera_transform().origin * 0.001, Vector3(-0.45, 0.42, 0.72).normalized(), true)
+	cloud_layer.update_weather(cloud_preview_settings if cloud_preview_settings != null else settings, camera.get_camera_transform().origin * 0.001, Vector3(-0.45, 0.42, 0.72).normalized(), true)
 
 func _cloud_direction(screen_position: Vector2) -> Vector3:
 	if camera == null or settings == null or not camera.is_inside_tree(): return Vector3.ZERO
@@ -770,15 +786,29 @@ func _cloud_direction(screen_position: Vector2) -> Vector3:
 func _weather_space(direction: Vector3) -> Vector3:
 	return (cloud_layer.drift_basis().inverse() * direction).normalized()
 
+## Paint lands on the low formations' mid-height, where the preview shows them.
 func _cloud_brush_height() -> float:
-	var atmosphere := float(settings.atmosphere_height)
-	return minf(maxf(minf(atmosphere * 0.22, 6000.0), float(settings.relief) + 1600.0), atmosphere * 0.65)
+	var heights: Vector3 = CloudLayer.heights(settings)
+	return (heights.x + heights.y) * 0.5
 
 func _start_cloud_stroke(position: Vector2) -> void:
+	_cancel_cloud_preview()
 	var direction := _cloud_direction(position)
 	if direction == Vector3.ZERO: return
 	var focused := get_viewport().gui_get_focus_owner()
 	if focused != null: focused.release_focus()
+	if cloud_tools.mode in [3, 4]:
+		selection_stroke = true
+		painting_clouds = true
+		last_cloud_stamp = direction
+		_stamp_cloud(direction)
+		return
+	if cloud_tools.mode == 7:
+		cloud_tools.design.pick_source(_weather_space(direction))
+		return
+	if cloud_tools.mode == 8:
+		_transform_cloud_region(_weather_space(direction))
+		return
 	if cloud_tools.mode == 2:
 		if settings.cloud_weather == null:
 			status.text = "Paint a formation before capturing a reusable tile."
@@ -793,6 +823,9 @@ func _start_cloud_stroke(position: Vector2) -> void:
 	if settings.cloud_weather == null:
 		settings.cloud_weather = CloudWeather.new()
 		settings.cloud_weather.initialize()
+	if not settings.cloud_weather.layer_editable():
+		status.text = "Select a visible, unlocked cloud layer to paint."
+		return
 	painting_clouds = true
 	stroke_changed = false
 	last_cloud_stamp = direction
@@ -818,11 +851,21 @@ func _paint_cloud_to(position: Vector2) -> void:
 		last_cloud_stamp = point
 
 func _stamp_cloud(direction: Vector3) -> void:
-	stroke_changed = settings.cloud_weather.stamp(_weather_space(direction), deg_to_rad(cloud_tools.radius_degrees), cloud_tools.selected_tile, cloud_tools.strength, deg_to_rad(cloud_tools.tile_rotation_degrees), cloud_tools.mode == 1, cloud_tools.feather) or stroke_changed
+	if selection_stroke:
+		cloud_tools.design.paint_selection(_weather_space(direction), cloud_tools.mode == 4)
+		return
+	if cloud_tools.mode in [5, 6]:
+		stroke_changed = preload("res://scripts/cloud_design.gd").retouch(settings.cloud_weather, _weather_space(direction), deg_to_rad(cloud_tools.radius_degrees), cloud_tools.strength, cloud_tools.mode == 6) or stroke_changed
+		return
+	stroke_changed = settings.cloud_weather.stamp_layer(_weather_space(direction), deg_to_rad(cloud_tools.radius_degrees), cloud_tools.selected_tile, cloud_tools.strength, deg_to_rad(cloud_tools.tile_rotation_degrees), cloud_tools.mode == 1, cloud_tools.feather) or stroke_changed
 
 func _finish_cloud_stroke() -> void:
 	if not painting_clouds: return
 	painting_clouds = false
+	if selection_stroke:
+		selection_stroke = false
+		last_cloud_stamp = Vector3.ZERO
+		return
 	if stroke_changed:
 		_record_cloud_change(stroke_before)
 		if status != null: status.text = "Cloud map edited. Bake & Save keeps these formations."
@@ -831,25 +874,26 @@ func _finish_cloud_stroke() -> void:
 	stroke_before = null
 	last_cloud_stamp = Vector3.ZERO
 
-func _cloud_snapshot() -> Image:
-	return settings.cloud_weather.snapshot() if settings != null and settings.cloud_weather != null else null
+func _cloud_snapshot() -> Resource:
+	return settings.cloud_weather.layer_snapshot() if settings != null and settings.cloud_weather != null else null
 
-func _restore_cloud_snapshot(snapshot: Image) -> void:
+func _restore_cloud_snapshot(snapshot: Resource) -> void:
+	if cloud_tools != null and cloud_tools.design != null: cloud_tools.design.source_center = Vector3.ZERO
 	if snapshot == null:
 		settings.cloud_weather = null
 	else:
-		if settings.cloud_weather == null: settings.cloud_weather = CloudWeather.new()
-		settings.cloud_weather.restore(snapshot)
+		settings.cloud_weather = snapshot.layer_snapshot()
 	if cloud_tools != null: cloud_tools.refresh()
 	_update_cloud_preview()
 
-func _record_cloud_change(before: Image) -> void:
+func _record_cloud_change(before: Resource) -> void:
 	cloud_undo.append({"before": before, "after": _cloud_snapshot()})
 	if cloud_undo.size() > 24: cloud_undo.pop_front()
 	cloud_redo.clear()
 	if cloud_tools != null: cloud_tools.refresh()
 
 func _undo_clouds() -> void:
+	_cancel_cloud_preview()
 	_finish_cloud_stroke()
 	if cloud_undo.is_empty(): return
 	var change: Dictionary = cloud_undo.pop_back()
@@ -857,29 +901,56 @@ func _undo_clouds() -> void:
 	_restore_cloud_snapshot(change.before)
 
 func _redo_clouds() -> void:
+	_cancel_cloud_preview()
 	_finish_cloud_stroke()
 	if cloud_redo.is_empty(): return
 	var change: Dictionary = cloud_redo.pop_back()
 	cloud_undo.append(change)
 	_restore_cloud_snapshot(change.after)
 
-func _generate_clouds(seed_value: int, count: int, category: String = "mixed") -> void:
+func _generate_clouds(seed_value: int, count: int, category: String = "mixed", selected_types: Array[String] = [], options: Dictionary = {}, preview: bool = false) -> void:
 	_finish_cloud_stroke()
+	_cancel_cloud_preview()
 	var before := _cloud_snapshot()
-	settings.cloud_weather = preload("res://scripts/cloud_brush_library.gd").generate_weather(seed_value, count, 0.9, category)
-	_record_cloud_change(before)
+	var target: Resource = before.layer_snapshot() if before != null else CloudWeather.new()
+	if not target.layer_editable():
+		if status != null: status.text = "Select a visible, unlocked layer to generate clouds."
+		return
+	var design = preload("res://scripts/cloud_design.gd")
+	var selection: Resource = cloud_tools.design.selection if cloud_tools != null and cloud_tools.design != null else null
+	var mask: Image = design.region_mask(target.image.get_size(), options, selection)
+	var scoped := options.duplicate()
+	if int(options.get("region", 0)) != 0: scoped["mask"] = mask
+	if int(options.get("region", 0)) == 1 and (selection == null or not selection.has_clouds()):
+		if status != null: status.text = "Paint a generation selection first."
+		return
+	var generated: Resource = preload("res://scripts/cloud_brush_library.gd").generate_weather(seed_value, count, float(options.get("density", 0.9)), category, selected_types, scoped)
+	var combined: Image = design.combine(target.paint_layers[target.active_layer].image, generated.image, mask, bool(options.get("additive", false)))
+	target.replace_active_layer(combined)
+	if preview:
+		cloud_generation_preview = target
+		cloud_preview_settings = settings.duplicate()
+		cloud_preview_settings.cloud_weather = target
+		if cloud_tools != null: cloud_tools.design.refresh_preview()
+	else:
+		settings.cloud_weather = target
+		_record_cloud_change(before)
 	_update_cloud_preview()
 	if status != null:
-		status.text = "Generated %d formations (seed %d). Paint to refine, or Bake & Save." % [count, seed_value]
+		status.text = "%s %d formations on %s (seed %d)." % ["Previewing" if preview else "Generated", count, target.paint_layers[target.active_layer].name, seed_value]
 
 func _clear_clouds() -> void:
+	_cancel_cloud_preview()
 	_finish_cloud_stroke()
 	var before := _cloud_snapshot()
-	settings.cloud_weather = CloudWeather.new()
-	settings.cloud_weather.initialize()
+	if settings.cloud_weather == null: settings.cloud_weather = CloudWeather.new()
+	if not settings.cloud_weather.layer_editable(): return
+	var blank := CloudWeather.new()
+	settings.cloud_weather.replace_active_layer(blank.image)
 	_record_cloud_change(before)
 
 func _procedural_clouds() -> void:
+	_cancel_cloud_preview()
 	_finish_cloud_stroke()
 	if settings.cloud_weather == null: return
 	var before := _cloud_snapshot()
@@ -887,6 +958,8 @@ func _procedural_clouds() -> void:
 	_record_cloud_change(before)
 
 func _reset_cloud_history() -> void:
+	_cancel_cloud_preview()
+	if cloud_tools != null and cloud_tools.design != null: cloud_tools.design.reset_region()
 	_finish_cloud_stroke()
 	cloud_undo.clear()
 	cloud_redo.clear()
@@ -985,3 +1058,72 @@ func _rect_offsets(control: Control, rect: Rect2) -> void:
 	control.offset_top = rect.position.y
 	control.offset_right = rect.end.x
 	control.offset_bottom = rect.end.y
+
+func _edit_cloud_layer(action: String, value: Variant = null) -> void:
+	_cancel_cloud_preview()
+	if cloud_tools != null and cloud_tools.design != null: cloud_tools.design.source_center = Vector3.ZERO
+	_finish_cloud_stroke()
+	var before := _cloud_snapshot()
+	if settings.cloud_weather == null: settings.cloud_weather = CloudWeather.new()
+	var weather: Resource = settings.cloud_weather
+	weather.ensure_layers()
+	var layer: Dictionary = weather.paint_layers[weather.active_layer]
+	match action:
+		"add": weather.add_paint_layer()
+		"duplicate":
+			var copy: Dictionary = layer.duplicate()
+			copy.image = layer.image.duplicate()
+			copy.name = String(layer.name) + " copy"
+			copy.locked = false
+			weather.paint_layers.insert(weather.active_layer + 1, copy)
+			weather.active_layer += 1
+		"opacity":
+			if layer.locked: return
+			layer.opacity = clampf(float(value), 0, 1)
+		"select": weather.active_layer = int(value)
+		"name":
+			if not String(value).strip_edges().is_empty(): layer.name = String(value).strip_edges()
+		"visible": layer.visible = bool(value)
+		"locked": layer.locked = bool(value)
+		"delete":
+			if layer.locked or weather.paint_layers.size() <= 1: return
+			weather.paint_layers.remove_at(weather.active_layer)
+			weather.active_layer = mini(weather.active_layer, weather.paint_layers.size() - 1)
+		"up", "down":
+			var destination: int = weather.active_layer + (1 if action == "up" else -1)
+			if destination < 0 or destination >= weather.paint_layers.size(): return
+			weather.paint_layers[weather.active_layer] = weather.paint_layers[destination]
+			weather.paint_layers[destination] = layer
+			weather.active_layer = destination
+	weather.rebuild_layers()
+	_record_cloud_change(before)
+	_update_cloud_preview()
+
+func _cancel_cloud_preview() -> void:
+	cloud_generation_preview = null
+	cloud_preview_settings = null
+	if cloud_tools != null and cloud_tools.design != null: cloud_tools.design.refresh_preview()
+
+func _apply_cloud_preview() -> void:
+	if cloud_generation_preview == null: return
+	var before := _cloud_snapshot()
+	settings.cloud_weather = cloud_generation_preview
+	_cancel_cloud_preview()
+	_record_cloud_change(before)
+	_update_cloud_preview()
+	if status != null: status.text = "Cloud generation applied. Bake & Save preserves the layers."
+
+func _transform_cloud_region(destination: Vector3) -> void:
+	_finish_cloud_stroke()
+	_cancel_cloud_preview()
+	var design: Node = cloud_tools.design
+	if settings.cloud_weather == null or design.source_center == Vector3.ZERO or settings.cloud_weather.active_layer != design.source_layer:
+		status.text = "Pick a source region on the active layer first."
+		return
+	for key in ["rotation", "scale"]: design.values[key].apply()
+	var before := _cloud_snapshot()
+	if preload("res://scripts/cloud_design.gd").transform_region(settings.cloud_weather, design.source_center, destination, design.source_radius, deg_to_rad(design.values.rotation.value), design.values.scale.value / 100.0):
+		_record_cloud_change(before)
+		design.source_center = Vector3.ZERO
+		design.transform_status.text = "Region transformed. Pick a new source for the next edit."
+		_update_cloud_preview()

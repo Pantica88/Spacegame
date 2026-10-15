@@ -71,18 +71,61 @@ static func tile(id: String, variant: int = 0, size: int = 128) -> Image:
 
 ## A local RNG makes the same seed reproducible without affecting gameplay RNG.
 ## Generation uses the same spherical stamps and blend rules as manual painting.
-static func generate_weather(seed_value: int, formation_count: int = 64, density: float = 0.8, category: String = "mixed") -> Resource:
+static func generate_weather(seed_value: int, formation_count: int = 64, density: float = 0.8, category: String = "mixed", selected_types: Array[String] = [], options: Dictionary = {}) -> Resource:
 	var weather := WeatherMap.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = seed_value
 	var choices := ["cumulus", "cumulus", "streets", "stratocumulus", "stratocumulus", "overcast", "storm", "cirrus", "mushroom"]
+	# Normalize to catalog order so checkbox click order cannot change the seed.
+	var mix: Array[String] = []
+	for entry in categories():
+		if entry.id in selected_types: mix.append(entry.id)
+	# Seeded shuffle, then cycle: every chosen type participates when there are
+	# at least as many formations as types, with counts differing by at most one.
+	for index in range(mix.size() - 1, 0, -1):
+		var other := random.randi_range(0, index)
+		var swap := mix[index]
+		mix[index] = mix[other]
+		mix[other] = swap
+	var schedule: Array[String] = []
+	if options.has("weights") and not mix.is_empty():
+		var weights: Dictionary = options.weights
+		var total := 0.0
+		for id in mix: total += maxf(float(weights.get(id, 1.0)), 0.0)
+		if total <= 0.0: return weather
+		var allocated := {}
+		for id in mix: allocated[id] = 0
+		for slot in range(clampi(formation_count, 1, 160)):
+			var chosen := mix[0]
+			var deficit := -INF
+			for id in mix:
+				var desired := (slot + 1) * maxf(float(weights.get(id, 1.0)), 0.0) / total - int(allocated[id])
+				if desired > deficit:
+					deficit = desired
+					chosen = id
+			schedule.append(chosen)
+			allocated[chosen] += 1
+	var mask: Image = options.get("mask")
+	var positions: Array[Vector2i] = []
+	if mask != null:
+		for y in range(mask.get_height()):
+			for x in range(mask.get_width()):
+				if mask.get_pixel(x, y).r > 0.0: positions.append(Vector2i(x, y))
+		if positions.is_empty(): return weather
 	for index in range(clampi(formation_count, 1, 160)):
 		var latitude := random.randf_range(-1.0, 1.0)
 		var longitude := random.randf_range(-PI, PI)
 		var horizontal := sqrt(maxf(0.0, 1.0 - latitude * latitude))
 		var center := Vector3(cos(longitude) * horizontal, latitude, sin(longitude) * horizontal)
+		if mask != null:
+			var pixel: Vector2i = positions[random.randi_range(0, positions.size() - 1)]
+			center = preload("res://scripts/cloud_design.gd").direction_at(pixel.x, pixel.y, mask.get_size())
 		var id: String = choices[random.randi_range(0, choices.size() - 1)] if category == "mixed" else category
-		var radius := deg_to_rad(random.randf_range(12.0, 32.0))
+		if not mix.is_empty(): id = mix[index % mix.size()]
+		if not schedule.is_empty(): id = schedule[index]
+		var minimum := clampf(float(options.get("min_radius", 12.0)), 1, 70)
+		var maximum := clampf(float(options.get("max_radius", 32.0)), minimum, 70)
+		var radius := deg_to_rad(random.randf_range(minimum, maximum))
 		if id == "mushroom": radius *= 0.45
 		weather.stamp(center, radius, tile(id, random.randi_range(0, 3)), clampf(density, 0.0, 1.0) * random.randf_range(0.65, 1.0), random.randf_range(-PI, PI), false, 0.55)
 	return weather

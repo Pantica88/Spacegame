@@ -50,9 +50,8 @@ func _run() -> void:
 	assert(editor.settings.cloud_weather.image.get_data() == painted)
 	editor.cloud_tools.weather_seed.value = 9871
 	editor.cloud_tools.weather_count.value = 8
-	for index in range(1, editor.cloud_tools.weather_pattern.item_count):
-		if editor.cloud_tools.weather_pattern.get_item_metadata(index) == "mushroom":
-			editor.cloud_tools.weather_pattern.select(index)
+	editor.cloud_tools._select_weather_types(false)
+	editor.cloud_tools.weather_types["mushroom"].button_pressed = true
 	editor.cloud_tools._generate_weather()
 	var generated: PackedByteArray = editor.settings.cloud_weather.image.get_data()
 	assert(generated != painted, "Generator replaces the weather map")
@@ -82,9 +81,8 @@ func _run() -> void:
 	assert(saved != null and saved.cloud_weather != null, "Bake & Save persists authored weather with the body")
 	assert(saved.cloud_weather.image.get_data() == before_save, "Baking preserves every cloud formation weight")
 	if DisplayServer.get_name() != "headless":
-		var noise: NoiseTexture3D = editor.cloud_layer.material_override.get_shader_parameter("cloud_noise")
-		if noise.get_data().is_empty(): await noise.changed
-		for frame in range(5): await process_frame
+		# The march keeps a short temporal history; let it settle.
+		for frame in range(30): await process_frame
 		await RenderingServer.frame_post_draw
 		var capture: Image = root.get_texture().get_image()
 		capture.save_png("/tmp/aphelion-cloud-editor.png")

@@ -23,8 +23,22 @@ var mode_picker: OptionButton
 var custom_paths: Array[String] = []
 var weather_seed: SpinBox
 var weather_count: SpinBox
-var weather_pattern: OptionButton
+var weather_types: Dictionary = {}
+var weather_weights: Dictionary = {}
+var design: VBoxContainer
+var layer_opacity: SpinBox
+var weather_target: Label
+var weather_mix_status: Label
+var weather_generate: Button
+var weather_randomize: Button
 var dynamics_sliders := {}
+var layer_picker: OptionButton
+var layer_name: LineEdit
+var layer_visible: CheckButton
+var layer_locked: CheckButton
+var layer_delete: Button
+var layer_up: Button
+var layer_down: Button
 
 func build(owner_editor: Node) -> void:
 	editor = owner_editor
@@ -41,10 +55,11 @@ func build(owner_editor: Node) -> void:
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	map_status = editor._label(box, "", 12, editor.MINT)
 	map_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_build_layers(box)
 	_build_generator(box)
 	_build_dynamics(box)
 	mode_picker = OptionButton.new()
-	for title in ["Paint formations", "Erase to clear sky", "Capture region as tile"]:
+	for title in ["Paint formations", "Erase selected layer", "Capture region as tile", "Paint generation selection", "Subtract selection", "Smooth layer", "Soften layer", "Pick transform source", "Place transformed region"]:
 		mode_picker.add_item(title)
 	mode_picker.item_selected.connect(func(index: int): mode = index)
 	box.add_child(mode_picker)
@@ -110,9 +125,9 @@ func build(owner_editor: Node) -> void:
 	_reload_custom_tiles()
 	var actions := HBoxContainer.new()
 	box.add_child(actions)
-	editor._button(actions, "Clear sky", editor._clear_clouds).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	editor._button(actions, "Procedural", editor._procedural_clouds).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var note: Label = editor._label(box, "The first paint stroke starts a clear weather map. Bake & Save stores it with this body. Custom tiles are shared between planets.", 12, editor.MUTED)
+	editor._button(actions, "Clear layer", editor._clear_clouds).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	editor._button(actions, "Reset to procedural", editor._procedural_clouds).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var note: Label = editor._label(box, "Paint and erase affect only the selected visible, unlocked layer. Reset to procedural removes all layers (undoable). Bake & Save stores it with this body. Custom tiles are shared between planets.", 12, editor.MUTED)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_select_category(category)
 	refresh()
@@ -145,23 +160,50 @@ func _build_generator(box: VBoxContainer) -> void:
 	weather_count.step = 8
 	weather_count.value = 64
 	count_row.add_child(weather_count)
-	weather_pattern = OptionButton.new()
-	weather_pattern.add_item("Mixed cloud types")
+	weather_target = editor._label(section, "", 13, editor.MINT)
+	weather_target.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	editor._label(section, "Choose types to mix", 13, editor.MUTED)
+	var choices := GridContainer.new()
+	choices.columns = 2
+	section.add_child(choices)
 	for entry in Library.categories():
-		weather_pattern.add_item(entry.name)
-		weather_pattern.set_item_metadata(weather_pattern.item_count - 1, entry.id)
-	section.add_child(weather_pattern)
+		var check := CheckBox.new()
+		check.text = entry.name
+		check.tooltip_text = entry.description
+		check.button_pressed = true
+		check.toggled.connect(func(_pressed: bool): _refresh_generator())
+		weather_types[entry.id] = check
+		choices.add_child(check)
+		var weight := SpinBox.new()
+		weight.min_value = 0
+		weight.max_value = 100
+		weight.value = 1
+		weight.suffix = " parts"
+		weight.value_changed.connect(func(_value: float): _refresh_generator())
+		weather_weights[entry.id] = weight
+		choices.add_child(weight)
+	var selection := HBoxContainer.new()
+	section.add_child(selection)
+	editor._button(selection, "Select all", func(): _select_weather_types(true))
+	editor._button(selection, "Clear selection", func(): _select_weather_types(false))
+	weather_mix_status = editor._label(section, "", 12, editor.MUTED)
+	weather_mix_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var actions := HBoxContainer.new()
 	section.add_child(actions)
-	editor._button(actions, "Generate", _generate_weather).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	editor._button(actions, "Randomize", func():
+	weather_generate = editor._button(actions, "Preview generation", func(): _generate_weather(true))
+	weather_generate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	weather_randomize = editor._button(actions, "Reroll preview", func():
 		var random := RandomNumberGenerator.new()
 		random.randomize()
-		weather_seed.value = random.randi_range(1, 999999999)
-		_generate_weather()
-	).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var hint: Label = editor._label(section, "Replaces this body's weather. Undo restores it.\nSame seed and settings reproduce the same sky.", 12, editor.MUTED)
+		weather_seed.get_line_edit().text = str(random.randi_range(1, 999999999))
+		_generate_weather(true)
+	)
+	weather_randomize.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var hint: Label = editor._label(section, "Replaces only the selected visible, unlocked layer. Add a layer to keep its existing clouds. Undo restores it.\nSame seed and settings reproduce the same sky.", 12, editor.MUTED)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	design = preload("res://scripts/cloud_design_panel.gd").new()
+	section.add_child(design)
+	design.build(self)
 
 func _build_dynamics(box: VBoxContainer) -> void:
 	editor._label(box, "SKY DYNAMICS", 11, editor.MINT)
@@ -194,12 +236,18 @@ func _setting_slider(box: VBoxContainer, title: String, key: String, minimum: fl
 	box.add_child(slider)
 	dynamics_sliders[key] = slider
 
-func _generate_weather() -> void:
+func _generate_weather(preview: bool = false) -> void:
 	# Commit typed SpinBox text even when Generate was clicked before Enter.
 	weather_seed.apply()
 	weather_count.apply()
-	var pattern := "mixed" if weather_pattern.selected == 0 else String(weather_pattern.get_item_metadata(weather_pattern.selected))
-	editor._generate_clouds(int(weather_seed.value), int(weather_count.value), pattern)
+	var selected := _selected_weather_types()
+	if selected.is_empty(): return
+	var options: Dictionary = design.options() if design != null else {}
+	options["weights"] = _weather_weights()
+	var total := 0.0
+	for id in selected: total += float(options.weights[id])
+	if total <= 0: return
+	editor._generate_clouds(int(weather_seed.value), int(weather_count.value), "mixed", selected, options, preview)
 
 func _brush_slider(box: VBoxContainer, title: String, minimum: float, maximum: float, step_size: float, initial: float, unit: String, callback: Callable) -> void:
 	var label: Label = editor._label(box, "", 13, editor.MUTED)
@@ -273,9 +321,123 @@ func refresh() -> void:
 		map_status.text = "Airless body — add atmosphere in World to see clouds."
 	else:
 		map_status.text = "Painted weather • saved with this body" if editor.settings.cloud_weather != null else "Procedural weather • ready to paint"
+	_refresh_layers()
+	_refresh_generator()
 	for key in dynamics_sliders:
 		var slider: HSlider = dynamics_sliders[key]
 		slider.set_value_no_signal(float(editor.settings.get(key)))
 		slider.get_meta("show").call(slider.value)
 	undo_button.disabled = editor.cloud_undo.is_empty()
 	redo_button.disabled = editor.cloud_redo.is_empty()
+
+func _build_layers(box: VBoxContainer) -> void:
+	editor._label(box, "CLOUD PAINT LAYERS", 11, editor.MINT)
+	layer_picker = OptionButton.new()
+	layer_picker.item_selected.connect(func(index: int): editor._edit_cloud_layer("select", layer_picker.get_item_id(index)))
+	box.add_child(layer_picker)
+	layer_name = LineEdit.new()
+	layer_name.placeholder_text = "Layer name"
+	layer_name.text_submitted.connect(func(value: String): editor._edit_cloud_layer("name", value))
+	layer_name.focus_exited.connect(func():
+		if editor.settings.cloud_weather != null and layer_name.text != editor.settings.cloud_weather.paint_layers[editor.settings.cloud_weather.active_layer].name:
+			editor._edit_cloud_layer("name", layer_name.text)
+	)
+	box.add_child(layer_name)
+	var flags := HBoxContainer.new()
+	box.add_child(flags)
+	layer_visible = CheckButton.new()
+	layer_visible.text = "Visible"
+	layer_visible.toggled.connect(func(value: bool): editor._edit_cloud_layer("visible", value))
+	flags.add_child(layer_visible)
+	layer_locked = CheckButton.new()
+	layer_locked.text = "Locked"
+	layer_locked.toggled.connect(func(value: bool): editor._edit_cloud_layer("locked", value))
+	flags.add_child(layer_locked)
+	var actions := HBoxContainer.new()
+	box.add_child(actions)
+	editor._button(actions, "Add", func(): editor._edit_cloud_layer("add"))
+	editor._button(box, "Duplicate selected layer", func(): editor._edit_cloud_layer("duplicate"))
+	layer_opacity = SpinBox.new()
+	layer_opacity.min_value = 0
+	layer_opacity.max_value = 100
+	layer_opacity.value = 100
+	layer_opacity.suffix = "% layer opacity"
+	layer_opacity.value_changed.connect(func(value: float): editor._edit_cloud_layer("opacity", value / 100.0))
+	box.add_child(layer_opacity)
+	layer_up = editor._button(actions, "Up", func(): editor._edit_cloud_layer("up"))
+	layer_down = editor._button(actions, "Down", func(): editor._edit_cloud_layer("down"))
+	layer_delete = editor._button(actions, "Delete", func(): editor._edit_cloud_layer("delete"))
+	var hint: Label = editor._label(box, "Top layers cover lower layers. Erasing reveals the clouds below. Add a layer before generating a separate formation pass.", 12, editor.MUTED)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+func _refresh_layers() -> void:
+	layer_picker.clear()
+	var weather: Resource = editor.settings.cloud_weather
+	var present := weather != null
+	layer_opacity.editable = present
+	layer_name.editable = present
+	layer_visible.disabled = not present
+	layer_locked.disabled = not present
+	layer_delete.disabled = true
+	layer_up.disabled = true
+	layer_down.disabled = true
+	if not present:
+		layer_picker.add_item("No painted layers — Add to start")
+		layer_picker.disabled = true
+		layer_name.text = ""
+		layer_visible.set_pressed_no_signal(false)
+		layer_locked.set_pressed_no_signal(false)
+		return
+	weather.ensure_layers()
+	layer_picker.disabled = false
+	for index in range(weather.paint_layers.size() - 1, -1, -1):
+		var entry: Dictionary = weather.paint_layers[index]
+		layer_picker.add_item(String(entry.name) + (" [hidden]" if not entry.visible else "") + (" [locked]" if entry.locked else ""), index)
+		if index == weather.active_layer: layer_picker.select(layer_picker.item_count - 1)
+	var layer: Dictionary = weather.paint_layers[weather.active_layer]
+	layer_opacity.set_value_no_signal(float(layer.get("opacity", 1.0)) * 100.0)
+	layer_opacity.editable = not layer.locked
+	layer_name.text = layer.name
+	layer_visible.set_pressed_no_signal(layer.visible)
+	layer_locked.set_pressed_no_signal(layer.locked)
+	layer_delete.disabled = layer.locked or weather.paint_layers.size() <= 1
+	layer_up.disabled = weather.active_layer == weather.paint_layers.size() - 1
+	layer_down.disabled = weather.active_layer == 0
+
+func _selected_weather_types() -> Array[String]:
+	var selected: Array[String] = []
+	for id in weather_types:
+		if weather_types[id].button_pressed: selected.append(id)
+	return selected
+
+func _select_weather_types(selected: bool) -> void:
+	for check in weather_types.values(): check.set_pressed_no_signal(selected)
+	_refresh_generator()
+
+func _refresh_generator() -> void:
+	if weather_generate == null or editor.settings == null: return
+	var weather: Resource = editor.settings.cloud_weather
+	var editable := true
+	if weather == null:
+		weather_target.text = "Target: new Clouds 1 layer"
+	else:
+		weather.ensure_layers()
+		var layer: Dictionary = weather.paint_layers[weather.active_layer]
+		editable = weather.layer_editable()
+		weather_target.text = "Target: %s%s" % [layer.name, " (hidden or locked)" if not editable else ""]
+	var count := _selected_weather_types().size()
+	var total := 0.0
+	for id in _selected_weather_types(): total += weather_weights[id].value
+	var shares: Array[String] = []
+	if total > 0:
+		for id in _selected_weather_types(): shares.append("%s %.0f%%" % [weather_types[id].text, weather_weights[id].value / total * 100])
+	weather_mix_status.text = "Select types with at least one positive mix weight." if total == 0 else ", ".join(shares)
+	weather_generate.disabled = count == 0 or total == 0 or not editable
+	weather_randomize.disabled = weather_generate.disabled
+
+func _weather_weights() -> Dictionary:
+	var weights := {}
+	for id in weather_weights:
+		weather_weights[id].apply()
+		weights[id] = weather_weights[id].value
+	return weights

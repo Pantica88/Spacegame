@@ -6,11 +6,6 @@ var hover_pitch := -0.2
 var hover_speed := 50.0
 var hover_time := 0.0
 var hover_hud: Label
-# N cycles the mirrored clouds' density (ocean.gdshader) for tuning.
-const CLOUD_DENSITIES: Array[float] = [1.0, 1.5, 2.0, 3.0, 4.0]
-# TEMPORARY A/B: J cycles the mirrored clouds' sun shadow (ocean.gdshader).
-const CLOUD_SHADINGS: Array[String] = ["current", "sky column", "sky tap", "full deck"]
-var cloud_shading := 3
 # O cycles the ocean patch's colours for tuning: albedo, albedo2, color_deep, color_shallow.
 const OCEAN_PRESETS := [
 	["tutorial", Color(0.0, 0.32, 0.43), Color(0.0, 0.47, 0.76), Color(0.11, 0.29, 0.33), Color(0.0, 0.47, 0.76)],
@@ -53,7 +48,7 @@ func _process(delta: float) -> void:
 	var precise := 0.1 if Input.is_physical_key_pressed(KEY_CTRL) else 1.0
 	hover_position += movement.limit_length() * hover_speed * boost * precise * delta
 	_update_camera()
-	hover_hud.text = "VISUAL HOVER  |  %.0f FPS  |  %.0f m/s  |  altitude %.0f m\nWASD move · Q/E down/up · Hold right mouse to look\nWheel time back/forward · −/= move speed · Shift fast · Ctrl slow\nTime %+.0f s · T reset time · R reset view · H hide HUD · C copy view · K cloud reflections %s · L sky reflection %s · N cloud density %.1f · J cloud shading %s · O ocean colour %s · Esc quit\n%s" % [Engine.get_frames_per_second(), hover_speed * boost * precise, _last_altitude, hover_time, "on" if _reflection_on("cloud_reflection_strength") else "off", "on" if _reflection_on("sky_reflection_strength") else "off", _cloud_density(), CLOUD_SHADINGS[cloud_shading], OCEAN_PRESETS[ocean_preset][0], _view_state()]
+	hover_hud.text = "VISUAL HOVER  |  %.0f FPS  |  %.0f m/s  |  altitude %.0f m\nWASD move · Q/E down/up · Hold right mouse to look\nWheel time back/forward · −/= move speed · Shift fast · Ctrl slow\nTime %+.0f s · T reset time · R reset view · H hide HUD · C copy view · K cloud reflections %s · L sky reflection %s · O ocean colour %s · Esc quit\n%s" % [Engine.get_frames_per_second(), hover_speed * boost * precise, _last_altitude, hover_time, "on" if _reflection_on("cloud_reflection_strength") else "off", "on" if _reflection_on("sky_reflection_strength") else "off", OCEAN_PRESETS[ocean_preset][0], _view_state()]
 	hover_hud.text += "\n" + _cloud_debug()
 
 
@@ -91,12 +86,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				_toggle_reflection("cloud_reflection_strength")
 			KEY_L:
 				_toggle_reflection("sky_reflection_strength")
-			KEY_N:
-				var next := CLOUD_DENSITIES.find(_cloud_density()) + 1
-				_ocean.material().set_shader_parameter("cloud_reflection_density", CLOUD_DENSITIES[next % CLOUD_DENSITIES.size()])
-			KEY_J:
-				cloud_shading = (cloud_shading + 1) % CLOUD_SHADINGS.size()
-				_ocean.material().set_shader_parameter("cloud_reflection_shading", cloud_shading)
 			KEY_O:
 				ocean_preset = (ocean_preset + 1) % OCEAN_PRESETS.size()
 				var preset: Array = OCEAN_PRESETS[ocean_preset]
@@ -110,20 +99,11 @@ func _reflection_on(parameter: String) -> bool:
 	return strength == null or float(strength) > 0.0
 
 
-# TEMP: cloud renderer state, for the limb-staircase investigation.
+# Cloud renderer state: march resolution and dispatched frames.
 func _cloud_debug() -> String:
-	var view := get_viewport()
-	var resolve: ShaderMaterial = _clouds._resolve_materials[_clouds._temporal_frame % 2] if not _clouds._resolve_materials.is_empty() else null
-	return "Clouds: view %s x%.2f  scale %.2f  lowres %s  offscreen %s  temporal %s  history %s  blend %.2f" % [
-		view.get("size"), view.scaling_3d_scale, _clouds.effective_scale(), _clouds._lowres.size,
-		_clouds.integrates_offscreen(), _clouds.temporal,
-		resolve.get_shader_parameter("history_valid") if resolve else "-",
-		resolve.get_shader_parameter("history_blend") if resolve else 0.0]
-
-func _cloud_density() -> float:
-	# Unset until first cycled; matches the shader default.
-	var density: Variant = _ocean.material().get_shader_parameter("cloud_reflection_density")
-	return 4.0 if density == null else float(density)
+	var march = _clouds.render_pass()
+	if march == null: return "Clouds: no compute renderer"
+	return "Clouds: march %s  drawing %s  frames %d" % [march.target_size(), _clouds.is_drawing(), march.dispatched]
 
 
 func _toggle_reflection(parameter: String) -> void:

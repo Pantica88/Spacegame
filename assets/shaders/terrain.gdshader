@@ -2,6 +2,31 @@ shader_type spatial;
 render_mode unshaded;
 #include "res://assets/shaders/atmosphere.gdshaderinc"
 #include "res://assets/shaders/water.gdshaderinc"
+// cloud_layer.gd sets the cloud field's uniforms here (add_shadow_receiver).
+#include "res://assets/shaders/cloud_field.gdshaderinc"
+// PROTOTYPE: cloud shadows on the ground. Marches the coarse cloud field
+// from the surface toward the sun through the cloud shell.
+uniform bool cloud_shadow_enabled = false;
+uniform int cloud_shadow_samples = 6;
+uniform mat3 cloud_to_local = mat3(1.0);
+float cloud_ground_shadow(vec3 point_km) {
+	vec3 p = cloud_to_local * point_km;
+	vec3 s = cloud_sun.xyz;
+	if (dot(normalize(p), s) < -0.1) { return 1.0; }
+	float top = cloud_params.w > 0.5 ? cloud_radii.w : cloud_radii.z;
+	float t0 = max(cloud_sphere_hits(p, s, cloud_radii.y).y, 0.0);
+	float t1 = cloud_sphere_hits(p, s, top).y;
+	// Grazing sun: the path through the shell is long; keep its near part.
+	t1 = min(t1, t0 + (top - cloud_radii.y) * 8.0);
+	if (t1 <= t0) { return 1.0; }
+	float dt = (t1 - t0) / float(cloud_shadow_samples);
+	float total = 0.0;
+	for (int i = 0; i < cloud_shadow_samples; i++) {
+		vec3 q = p + s * (t0 + (float(i) + 0.5) * dt);
+		total += cloud_coarse(q, length(q), cloud_weather(q), 1.5).x;
+	}
+	return exp(-total * dt * CLOUD_EXTINCTION * cloud_params.y * 0.35);
+}
 #include "res://assets/shaders/renderer_color.gdshaderinc"
 varying vec3 sphere_pos;
 varying vec3 surface_point;
@@ -211,7 +236,8 @@ void fragment() {
 	vec3 transmission;
 	vec3 air = scatter_air(ray_origin,normalize(ray),length(ray),transmission);
 	float glint;
-	vec3 reflected_surface = lit_surface(col,world_normal,radial,normalize(ray),sun_direction,ocean_tint,water_mask,glint);
+	float sun_visibility = cloud_shadow_enabled && !orthographic_view ? cloud_ground_shadow(surface_point) : 1.0;
+	vec3 reflected_surface = lit_surface(col,world_normal,radial,normalize(ray),sun_direction,ocean_tint,water_mask,sun_visibility,glint);
 	vec3 to_occluder = eclipse_center_km-surface_point;
 	// Trace from this surface point to the physical sun, not parallel rays
 	// from the body center. Its finite disk creates a penumbra during eclipse.

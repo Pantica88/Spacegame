@@ -34,7 +34,6 @@ func run() -> void:
 					game.world.camera.look_at(game.world._planet.position if variant != "away" else -game.world._planet.position, Vector3.UP)
 					game.world._update_atmosphere()
 					game.world._clouds.visible = variant != "no_clouds"
-					game.world._clouds._sync_lowres()
 					var cpu := (Time.get_ticks_usec()-start)/1000.0
 					await process_frame
 					await RenderingServer.frame_post_draw

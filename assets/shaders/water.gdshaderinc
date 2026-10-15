@@ -108,11 +108,12 @@ vec3 ocean_body(vec3 ocean, float coverage) {
 
 // col: surface albedo (land/water mix). view_ray: camera to surface, unit.
 // Returns sunlit, sky-filled and reflected colour before atmosphere.
-vec3 lit_surface(vec3 col, vec3 n, vec3 radial, vec3 view_ray, vec3 sun, vec3 ocean, float water_mask, out float glint) {
+// sun_visibility: direct sunlight reaching the surface (cloud shadow).
+vec3 lit_surface(vec3 col, vec3 n, vec3 radial, vec3 view_ray, vec3 sun, vec3 ocean, float water_mask, float sun_visibility, out float glint) {
 	float sun_height = dot(n, sun);
 	float horizon_light = smoothstep(-0.03, 0.03, dot(radial, sun));
 	vec3 sky_fill = vec3(0.045,0.065,0.085)*(0.45+0.55*max(dot(n,radial),0.0))*horizon_light;
-	vec3 surface_light = vec3(0.006,0.008,0.012)+sky_fill+vec3(1.0,0.98,0.95)*max(sun_height,0.0)*1.55*horizon_light;
+	vec3 surface_light = vec3(0.006,0.008,0.012)+sky_fill+vec3(1.0,0.98,0.95)*max(sun_height,0.0)*1.55*horizon_light*sun_visibility;
 	vec3 view_direction = -view_ray;
 	vec3 half_vector = normalize(sun+view_direction);
 	float fresnel = 0.08+0.92*pow(1.0-max(dot(n,view_direction),0.0),3.2);
@@ -122,9 +123,9 @@ vec3 lit_surface(vec3 col, vec3 n, vec3 radial, vec3 view_ray, vec3 sun, vec3 oc
 	vec3 ocean_reflection_tint = mix(vec3(0.18,0.30,0.46), vec3(1.0,0.96,0.90), lit_water);
 	vec3 water_reflection = mix(ocean*0.72, ocean_reflection_tint, 0.6);
 	water_reflection += sky_fill*0.8;
-	water_reflection += vec3(1.0,0.98,0.94)*sun_reflection*max(sun_height,0.0)*1.7;
+	water_reflection += vec3(1.0,0.98,0.94)*sun_reflection*max(sun_height,0.0)*1.7*sun_visibility;
 	float ocean_reflectivity = clamp(water_mask*fresnel*0.76,0.0,1.0);
-	glint = pow(max(dot(n,half_vector),0.0),120.0)*fresnel*water_mask*max(sun_height,0.0)*0.9;
+	glint = pow(max(dot(n,half_vector),0.0),120.0)*fresnel*water_mask*max(sun_height,0.0)*0.9*sun_visibility;
 	return mix(col*surface_light, water_reflection, ocean_reflectivity);
 }
 
